@@ -6,52 +6,64 @@ defmodule Hotsoup.Router do
   # API
 
   def start_link do
-    GenServer.start_link __MODULE__, [], name: __MODULE__
+    GenServer.start_link __MODULE__, []
   end
 
-  def register(expr, target) when is_bitstring(expr) and is_pid(target) do
-    GenServer.call __MODULE__, {:register, expr, target}, :infinity
+  def register(rid, expr, target) when is_bitstring(expr) and is_pid(target) do
+    GenServer.call rid, {:register, expr, target}, :infinity
   end
 
-  def route(node) do
-    GenServer.call __MODULE__, {:route, node}, :infinity
+  def unregister(rid, target) when is_pid(target) do
+    GenServer.call rid, {:unregister, target}, :infinity
   end
 
-  def debug(:dump) do
-    GenServer.call __MODULE__, {:debug, :dump}, :infinity
+  def route(rid, node) do
+    GenServer.call rid, {:route, node}, :infinity
   end
 
-  ## GenServer Callbacks
+  def debug(rid, :dump) do
+    GenServer.call rid, {:debug, :dump}, :infinity
+  end
+
+  ## Callbacks GenServer
 
   def init(_opts) do
-    Hotsoup.Logger.info(["started"])
+    Hotsoup.Logger.info ["started"]
     Process.flag :trap_exit, true
     {:ok, %{by_pattern: %{}}}
   end
 
   def handle_call({:register, pattern, target}, from, state) do
-    Hotsoup.Logger.debug(["Processing register ", pattern])
-    state = register(state, pattern, target)
+    Hotsoup.Logger.info ["Processing register ", pattern]
+    state = do_register(state, pattern, target)
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:unregister, target}, from, state) do
+    Hotsoup.Logger.info ["Processing unregister "]
+    state = do_unregister(state, target)
     {:reply, :ok, state}
   end
 
   def handle_call({:route, node}, from, state) do
-    Hotsoup.Logger.debug(["Processing route ", node ])
-    route(state, node)
+    Hotsoup.Logger.info ["Processing route ", node]
+    do_route(state, node)
     {:reply, :ok, state}
   end
 
   def handle_call({:debug, :dump}, from, state) do
-    dump(state)
+    do_dump(state)
     {:reply, :ok, state}
   end
 
   def handle_info({:EXIT, target, reason}, state) do
-    state = unregister(state, target)
+    state = do_unregister(state, target)
     {:noreply, state}
   end
 
-  defp register(state = %{by_pattern: by_pattern}, pattern, target) do
+  # Internals
+
+  defp do_register(state = %{by_pattern: by_pattern}, pattern, target) do
     by_pattern = 
       case Dict.fetch(by_pattern, pattern) do
         :error ->
@@ -70,7 +82,7 @@ defmodule Hotsoup.Router do
     %{state | by_pattern: by_pattern}
   end
 
-  defp unregister(state = %{by_pattern: by_pattern}, target) do
+  defp do_unregister(state = %{by_pattern: by_pattern}, target) do
     by_pattern = 
       by_pattern
       |> Stream.map(fn {pattern, {epm, targets}} ->
@@ -85,7 +97,7 @@ defmodule Hotsoup.Router do
     %{state | by_pattern: by_pattern}
   end
 
-  defp route(state = %{by_pattern: by_pattern}, node) do
+  defp do_route(state = %{by_pattern: by_pattern}, node) do
     Enum.each by_pattern, fn({pattern, {epm, targets}}) ->
                               case :ejpet.run(node, epm) do
                                 {true, captures} ->
@@ -99,7 +111,7 @@ defmodule Hotsoup.Router do
     state
   end
 
-  defp dump(%{by_pattern: by_pattern}) do
+  defp do_dump(%{by_pattern: by_pattern}) do
     Hotsoup.Logger.info ["dict: ", by_pattern]
   end
 end

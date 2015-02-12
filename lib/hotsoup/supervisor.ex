@@ -2,19 +2,25 @@ defmodule Hotsoup.Supervisor do
   use Supervisor
   use Hotsoup.Logger
 
+  # API
+
   def start_link do
     Supervisor.start_link __MODULE__, []
   end
 
+  # Callbacks Supervisor
+  
   def init([]) do
     Hotsoup.Logger.info ["started"]
 
     [] 
-    |> addchild(Hotsoup.Router, [])
+    |> addchild(:supervisor, Hotsoup.RouterManager, [])
     |> supervise(strategy: :one_for_one)
   end
 
-  defp addchild(acc, mod, args) do
-    [worker(mod, args) | acc]
+  # Internal
+
+  defp addchild(acc, :supervisor, mod, args, options \\ []) do
+    [supervisor(mod, args, options) | acc]
   end
 end

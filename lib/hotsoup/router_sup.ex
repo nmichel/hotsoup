@@ -1,4 +1,4 @@
-defmodule Hotsoup.RouterManager do
+defmodule Hotsoup.RouterSupervisor do
   use Supervisor
   use Hotsoup.Logger
 

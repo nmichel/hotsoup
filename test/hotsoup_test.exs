@@ -7,7 +7,7 @@ defmodule HotsoupTest do
   end
 
   test "Can start 100 differents routers" do
-    assert (Stream.repeatedly(fn() -> {:ok, _} = Hotsoup.RouterManager.start_router end)
+    assert (Stream.repeatedly(fn() -> {:ok, _} = Hotsoup.RouterSupervisor.start_router end)
             |> Stream.take(100)
             |> Stream.uniq()
             |> Stream.reject(fn(x) -> elem(x, 0) == :ok end)
@@ -16,7 +16,7 @@ defmodule HotsoupTest do
   end
 
   test "Can route nodes" do
-    {:ok, pid} = Hotsoup.RouterManager.start_router
+    {:ok, pid} = Hotsoup.RouterSupervisor.start_router
     assert(["42", "[42]", "\"42\""]
            |> Stream.map(&(Hotsoup.Router.route pid, :jsx.decode(&1)))
            |> Stream.reject(fn x -> x == :ok end)

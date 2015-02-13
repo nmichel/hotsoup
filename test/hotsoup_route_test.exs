@@ -34,24 +34,24 @@ defmodule HotsoupRoute do
   end
 
   setup do
-    {:ok, rid} = Hotsoup.RouterManager.start_router
+    {:ok, rid} = Hotsoup.RouterSupervisor.start_router
     {:ok, cid} = Client.start(self())
     {:ok, [rid: rid, cid: cid]}
   end
 
-  test "Can register listener", %{rid: rid, cid: cid} do
-    Hotsoup.Router.register rid, "42", cid
+  test "Can subscribe listener", %{rid: rid, cid: cid} do
+    Hotsoup.Router.subscribe rid, "42", cid
     n = :jsx.decode "42"
     Hotsoup.Router.route rid, n
     assert Client.expect {n, [{}]}
   end
 
-  test "Can unregister listener", %{rid: rid, cid: cid} do
+  test "Can unsubscribe listener", %{rid: rid, cid: cid} do
     n = :jsx.decode "42"
-    Hotsoup.Router.register rid, "42", cid
+    Hotsoup.Router.subscribe rid, "42", cid
     Hotsoup.Router.route rid, n
     assert Client.expect {n, [{}]}
-    Hotsoup.Router.unregister rid, cid
+    Hotsoup.Router.unsubscribe rid, cid
     Hotsoup.Router.route rid, n
     assert Client.do_not_expect {n, [{}]}
   end

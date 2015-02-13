@@ -9,12 +9,12 @@ defmodule Hotsoup.Router do
     GenServer.start_link __MODULE__, []
   end
 
-  def register(rid, expr, target) when is_bitstring(expr) and is_pid(target) do
-    GenServer.call rid, {:register, expr, target}, :infinity
+  def subscribe(rid, expr, target) when is_bitstring(expr) and is_pid(target) do
+    GenServer.call rid, {:subscribe, expr, target}, :infinity
   end
 
-  def unregister(rid, target) when is_pid(target) do
-    GenServer.call rid, {:unregister, target}, :infinity
+  def unsubscribe(rid, target) when is_pid(target) do
+    GenServer.call rid, {:unsubscribe, target}, :infinity
   end
 
   def route(rid, node) do
@@ -33,15 +33,15 @@ defmodule Hotsoup.Router do
     {:ok, %{by_pattern: %{}}}
   end
 
-  def handle_call({:register, pattern, target}, from, state) do
-    Hotsoup.Logger.info ["Processing register ", pattern]
-    state = do_register(state, pattern, target)
+  def handle_call({:subscribe, pattern, target}, from, state) do
+    Hotsoup.Logger.info ["Processing subscribe ", pattern]
+    state = do_subscribe(state, pattern, target)
     {:reply, :ok, state}
   end
 
-  def handle_call({:unregister, target}, from, state) do
-    Hotsoup.Logger.info ["Processing unregister "]
-    state = do_unregister(state, target)
+  def handle_call({:unsubscribe, target}, from, state) do
+    Hotsoup.Logger.info ["Processing unsubscribe "]
+    state = do_unsubscribe(state, target)
     {:reply, :ok, state}
   end
 
@@ -57,13 +57,13 @@ defmodule Hotsoup.Router do
   end
 
   def handle_info({:EXIT, target, reason}, state) do
-    state = do_unregister(state, target)
+    state = do_unsubscribe(state, target)
     {:noreply, state}
   end
 
   # Internals
 
-  defp do_register(state = %{by_pattern: by_pattern}, pattern, target) do
+  defp do_subscribe(state = %{by_pattern: by_pattern}, pattern, target) do
     by_pattern = 
       case Dict.fetch(by_pattern, pattern) do
         :error ->
@@ -82,7 +82,7 @@ defmodule Hotsoup.Router do
     %{state | by_pattern: by_pattern}
   end
 
-  defp do_unregister(state = %{by_pattern: by_pattern}, target) do
+  defp do_unsubscribe(state = %{by_pattern: by_pattern}, target) do
     by_pattern = 
       by_pattern
       |> Stream.map(fn {pattern, {epm, targets}} ->

@@ -1,4 +1,4 @@
-defmodule HotsoupRoute do
+defmodule Hotsoup.RouterTest do
   use ExUnit.Case
   doctest Hotsoup
 
@@ -34,25 +34,25 @@ defmodule HotsoupRoute do
   end
 
   setup do
-    {:ok, rid} = Hotsoup.RouterSupervisor.start_router
+    {:ok, rid} = Hotsoup.Router.start_link
     {:ok, cid} = Client.start(self())
     {:ok, [rid: rid, cid: cid]}
   end
 
   test "Can subscribe listener", %{rid: rid, cid: cid} do
-    Hotsoup.Router.subscribe rid, "42", cid
-    n = :jsx.decode "42"
-    Hotsoup.Router.route rid, n
-    assert Client.expect {n, [{}]}
+    n = :jsx.decode("42")
+    Hotsoup.Router.subscribe(rid, "42", cid)
+    Hotsoup.Router.route(rid, n)
+    assert Client.expect({n, [{}]})
   end
 
   test "Can unsubscribe listener", %{rid: rid, cid: cid} do
-    n = :jsx.decode "42"
-    Hotsoup.Router.subscribe rid, "42", cid
-    Hotsoup.Router.route rid, n
-    assert Client.expect {n, [{}]}
-    Hotsoup.Router.unsubscribe rid, cid
-    Hotsoup.Router.route rid, n
-    assert Client.do_not_expect {n, [{}]}
+    n = :jsx.decode("42")
+    Hotsoup.Router.subscribe(rid, "42", cid)
+    Hotsoup.Router.route(rid, n)
+    assert Client.expect({n, [{}]})
+    Hotsoup.Router.unsubscribe(rid, cid)
+    Hotsoup.Router.route(rid, n)
+    assert Client.do_not_expect({n, [{}]})
   end
 end

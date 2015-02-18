@@ -5,7 +5,7 @@ defmodule Hotsoup.Cluster do
   # API
   
   def start_link do
-    GenServer.start_link __MODULE__, [], name: __MODULE__
+    GenServer.start_link(__MODULE__, [], [name: __MODULE__])
   end
   
   def subscribe(client_id, pattern) when is_pid(client_id) and is_bitstring(pattern) do
@@ -80,7 +80,7 @@ defmodule Hotsoup.Cluster do
   # Internal
   
   defp subscribe_client_for_pattern(state = %{routers: routers}, client_id, pattern) do
-    Enum.each(routers, &(Hotsoup.Router.subscribe(&1, client_id, pattern)))
+    Enum.each(routers, &(Hotsoup.Router.subscribe(&1, pattern, client_id)))
     {:ok, state}
   end
   

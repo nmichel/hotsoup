@@ -25,6 +25,10 @@ defmodule Hotsoup.Router do
     GenServer.call(rid, {:route, node}, :infinity)
   end
 
+  def propagate(rid, node) do
+    GenServer.cast(rid, {:propagate, node})
+  end
+
   def add_router(rid, other_id) do
     GenServer.cast(rid, {:add_router, other_id})
   end
@@ -68,10 +72,8 @@ defmodule Hotsoup.Router do
   
   def handle_call({:route, node}, from, state) do
     Hotsoup.Logger.info(["Processing route ", node])
-    state =
-      state 
-      |> reset_timer()
-      |> do_route(node)
+    state = reset_timer(state)
+    do_route(state, node)
     {:reply, :ok, state}
   end
 
@@ -86,6 +88,12 @@ defmodule Hotsoup.Router do
     {:noreply, state}
   end
 
+  def handle_cast({:propagate, node}, state) do
+    Hotsoup.Logger.info(["Propagating node", node])
+    do_propagate(state, node)
+    {:noreply, state}
+  end
+
   def handle_cast({:remove_router, router_id}, state) do
     Hotsoup.Logger.info(["Removing router ", router_id])
     state = do_remove_router(state, router_id)
@@ -94,7 +102,7 @@ defmodule Hotsoup.Router do
   
   def handle_info(:expired, state) do
     Hotsoup.Logger.info(["Router [", self(), "] expired"])
-    {:stop, :expired, state}
+    {:stop, :normal, state}
   end
 
   def handle_info({:EXIT, pid, reason}, state) do
@@ -104,6 +112,11 @@ defmodule Hotsoup.Router do
       |> do_unsubscribe(pid)
       |> do_remove_router(pid)
     {:noreply, state}
+  end
+
+  def terminate(_reason, _state) do
+    Hotsoup.Logger.info(["Process [", self, "] terminated"]);
+    :ok
   end
 
   # Internals
@@ -142,7 +155,13 @@ defmodule Hotsoup.Router do
     %{state | by_pattern: by_pattern}
   end
 
-  defp do_route(state = %{by_pattern: by_pattern}, node) do
+  defp do_route(state = %{by_pattern: by_pattern,
+                          routers: routers}, node) do
+    do_propagate(state, node)
+    Enum.each(routers, &propagate(&1, node))
+  end
+  
+  defp do_propagate(state = %{by_pattern: by_pattern}, node) do
     Enum.each(by_pattern, fn({pattern, {epm, targets}}) ->
                               case :ejpet.run(node, epm) do
                                 {true, captures} ->
@@ -153,7 +172,6 @@ defmodule Hotsoup.Router do
                                   :ok
                               end
                           end)
-    state
   end
 
   defp do_add_router(state = %{routers: routers}, router_id) do

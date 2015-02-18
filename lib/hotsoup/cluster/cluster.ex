@@ -1,4 +1,4 @@
-defmodule Hotsoup.Registrar do
+defmodule Hotsoup.Cluster do
   use Hotsoup.Logger
   use GenServer
 
@@ -96,7 +96,7 @@ defmodule Hotsoup.Registrar do
   end
 
   defp do_get_router(state, opts) do
-    case Hotsoup.RouterSupervisor.start_router(opts) do
+    case Hotsoup.Cluster.Supervisor.start_router(opts) do
       {:ok, pid} ->
         {{:ok, pid}, add_router(state, pid)}
       _ ->

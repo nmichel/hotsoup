@@ -5,18 +5,18 @@ defmodule Hotsoup.Supervisor do
   # API
 
   def start_link do
-    Supervisor.start_link __MODULE__, [], name: __MODULE__
+    Supervisor.start_link(__MODULE__, [], [name: __MODULE__])
   end
 
   # Callbacks Supervisor
   
   def init([]) do
-    Hotsoup.Logger.info ["started"]
+    Hotsoup.Logger.info(["started"])
     
     [] 
-    |> addchild(:supervisor, Hotsoup.RouterSupervisor, [])
-    |> addchild(:worker, Hotsoup.Registrar, [])
-    |> supervise(strategy: :one_for_one)
+    |> addchild(:supervisor, Hotsoup.Cluster.Supervisor, [])
+    |> addchild(:worker, Hotsoup.Cluster, [])
+    |> supervise([strategy: :one_for_one])
   end
 
   # Internal

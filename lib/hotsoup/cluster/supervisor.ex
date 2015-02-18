@@ -1,4 +1,4 @@
-defmodule Hotsoup.RouterSupervisor do
+defmodule Hotsoup.Cluster.Supervisor do
   use Supervisor
   use Hotsoup.Logger
 

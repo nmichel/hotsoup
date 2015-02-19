@@ -3,7 +3,7 @@ defmodule Hotsoup.ClusterTest do
   require Helper
 
   setup do
-    {:ok, [count: 1000, range: 9000, offset: 1000, max: 10000]}
+    {:ok, [count: 100, range: 9000, offset: 1000, max: 10000]}
   end
 
   @tag timeout: 100000

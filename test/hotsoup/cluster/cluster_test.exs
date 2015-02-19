@@ -3,9 +3,10 @@ defmodule Hotsoup.ClusterTest do
   require Helper
 
   setup do
-    {:ok, [count: 100, range: 9000, offset: 1000, max: 10000]}
+    {:ok, [count: 1000, range: 9000, offset: 1000, max: 10000]}
   end
 
+  @tag timeout: 100000
   test "Can lauch a bunch of routers and wait for them to die", context do
     Process.flag(:trap_exit, true)
 
@@ -42,6 +43,7 @@ defmodule Hotsoup.ClusterTest do
     end
   end
 
+  @tag timeout: 100000
   test "Route one / get many", context do
     routers = 
       Stream.repeatedly(fn () -> Hotsoup.Cluster.get_router(%{ttl: trunc(:random.uniform * context[:range]) + context[:offset]}) end)

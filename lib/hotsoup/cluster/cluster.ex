@@ -1,7 +1,8 @@
 defmodule Hotsoup.Cluster do
-  use Hotsoup.Logger
   use GenServer
-
+  use Hotsoup.Logger
+  import Hotsoup.Helpers
+ 
   # API
   
   def start_link do
@@ -41,24 +42,20 @@ defmodule Hotsoup.Cluster do
     {r, state} = subscribe_client_for_pattern(state, client_id, pattern)
     {:reply, r, state}
   end
-  
   def handle_call({:unsubscribe, client_id}, from, state) do
     Hotsoup.Logger.info(["Unsubscribing client [", client_id, "]"])
     {r, state} = unsubscribe_client(state, client_id)
     {:reply, r, state}
   end
-  
   def handle_call({:get_router, opts}, from, state) do
     Hotsoup.Logger.info(["Requesting router"])
     {r, state} = do_get_router(state, opts)
     {:reply, r, state}
   end
-
   def handle_call({:stats, :routers}, from, state) do
     stats = do_get_stats(state, :routers)
     {:reply, {:ok, stats}, state}
   end
-
   def handle_call({:debug, :dump}, from, state) do
     do_dump(state)
     {:reply, :ok, state}
@@ -73,23 +70,21 @@ defmodule Hotsoup.Cluster do
     {:noreply, state}
   end
 
-  def handle_info(info, state) do
-    Hotsoup.Logger.info(["Registrar received: ", info])
-  end
-
   # Internal
   
   defp subscribe_client_for_pattern(state = %{routers: routers}, client_id, pattern) do
-    Enum.each(routers, &(Hotsoup.Router.subscribe(&1, pattern, client_id)))
+    Enum.each(routers, fn(rid) ->
+                           no_error do
+                             Hotsoup.Router.subscribe(rid, pattern, client_id)
+                           end
+                       end)
     {:ok, state}
   end
   
   defp unsubscribe_client(state = %{routers: routers}, client_id) do
     Enum.each(routers, fn(router_id) ->
-                           try do
+                           no_error do
                              Hotsoup.Router.unsubscribe(router_id, client_id)
-                           catch 
-                             _e, _r -> :ok
                            end
                        end)
     state

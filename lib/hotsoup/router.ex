@@ -1,7 +1,8 @@
 defmodule Hotsoup.Router do
+  require Dict
   use GenServer
   use Hotsoup.Logger
-  require Dict
+  import Hotsoup.Helpers
 
   # API
 
@@ -13,16 +14,20 @@ defmodule Hotsoup.Router do
     GenServer.start_link(__MODULE__, [opts])
   end
 
+  def debug(rid, :dump) do
+    GenServer.call(rid, {:debug, :dump}, :infinity)
+  end
+
   def subscribe(rid, expr, target) when is_bitstring(expr) and is_pid(target) do
-    GenServer.call(rid, {:subscribe, expr, target}, :infinity)
+    GenServer.cast(rid, {:subscribe, expr, target})
   end
 
   def unsubscribe(rid, target) when is_pid(target) do
-    GenServer.call(rid, {:unsubscribe, target}, :infinity)
+    GenServer.cast(rid, {:unsubscribe, target})
   end
 
   def route(rid, node) do
-    GenServer.call(rid, {:route, node}, :infinity)
+    GenServer.cast(rid, {:route, node})
   end
 
   def propagate(rid, node) do
@@ -35,10 +40,6 @@ defmodule Hotsoup.Router do
 
   def remove_router(rid, other_id) do
     GenServer.cast(rid, {:remove_router, other_id})
-  end
-
-  def debug(rid, :dump) do
-    GenServer.call(rid, {:debug, :dump}, :infinity)
   end
 
   ## Callbacks GenServer
@@ -58,42 +59,37 @@ defmodule Hotsoup.Router do
             timer:      ref}}
   end
 
-  def handle_call({:subscribe, pattern, target}, from, state) do
-    Hotsoup.Logger.info(["Processing subscribe ", pattern])
-    state = do_subscribe(state, pattern, target)
-    {:reply, :ok, state}
-  end
-
-  def handle_call({:unsubscribe, target}, from, state) do
-    Hotsoup.Logger.info(["Processing unsubscribe "])
-    state = do_unsubscribe(state, target)
-    {:reply, :ok, state}
-  end
-  
-  def handle_call({:route, node}, from, state) do
-    Hotsoup.Logger.info(["Processing route ", node])
-    state = reset_timer(state)
-    do_route(state, node)
-    {:reply, :ok, state}
-  end
-
   def handle_call({:debug, :dump}, from, state) do
     do_dump(state)
     {:reply, :ok, state}
   end
-
+  
+  def handle_cast({:route, node}, state) do
+    Hotsoup.Logger.info(["Processing route ", node])
+    state = reset_timer(state)
+    do_route(state, node)
+    {:noreply, state}
+  end
+  def handle_cast({:subscribe, pattern, target}, state) do
+    Hotsoup.Logger.info(["Processing subscribe ", pattern])
+    state = do_subscribe(state, pattern, target)
+    {:noreply, state}
+  end
+  def handle_cast({:unsubscribe, target}, state) do
+    Hotsoup.Logger.info(["Processing unsubscribe "])
+    state = do_unsubscribe(state, target)
+    {:noreply, state}
+  end
   def handle_cast({:add_router, router_id}, state) do
     Hotsoup.Logger.info(["Adding router ", router_id])
     state = do_add_router(state, router_id)
     {:noreply, state}
   end
-
   def handle_cast({:propagate, node}, state) do
     Hotsoup.Logger.info(["Propagating node", node])
     do_propagate(state, node)
     {:noreply, state}
   end
-
   def handle_cast({:remove_router, router_id}, state) do
     Hotsoup.Logger.info(["Removing router ", router_id])
     state = do_remove_router(state, router_id)
@@ -104,7 +100,6 @@ defmodule Hotsoup.Router do
     Hotsoup.Logger.info(["Router [", self(), "] expired"])
     {:stop, :normal, state}
   end
-
   def handle_info({:EXIT, pid, reason}, state) do
     Hotsoup.Logger.info(["Process [", pid, "] exited"])
     state =
@@ -166,7 +161,9 @@ defmodule Hotsoup.Router do
                               case :ejpet.run(node, epm) do
                                 {true, captures} ->
                                   Enum.each targets, fn({tgt}) ->
-                                                         send(tgt, {node, captures})
+                                                         no_error do
+                                                           send(tgt, {node, captures})
+                                                         end
                                                      end
                                 {false, _} ->
                                   :ok
@@ -195,13 +192,11 @@ defmodule Hotsoup.Router do
     Hotsoup.Logger.info(["dict: ", by_pattern])
   end
 
+  defp reset_timer(state = %{timer: nil}) do
+    state
+  end
   defp reset_timer(state = %{timer: timer}) do
-    case timer do
-      nil ->
-        state
-      _ ->
-        :erlang.cancel_timer(timer)
-        %{state | timer: Process.send_after(self(), :expired, 10000)}
-    end
+    :erlang.cancel_timer(timer)
+    %{state | timer: Process.send_after(self(), :expired, 10000)}
   end
 end

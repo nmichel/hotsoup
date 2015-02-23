@@ -1,98 +1,116 @@
-defmodule Hotsoup.Router.ClientTest do
-  use ExUnit.Case
-  require Helper
-	
-  defmodule MySimplestClient do
-    use Hotsoup.Router.Client
-    use Hotsoup.Logger
-    
-    match "42", state = %{nodes: nodes} do
-      Hotsoup.Logger.info ["Received 42: ", jnode, ", history: ", nodes]
-      %{state | nodes: [jnode | nodes]}
-    end
-    
-    match "42", state = %{name: name} do
-      Hotsoup.Logger.info ["Received 42: ", jnode, ", name: ", name]
-      state
-    end
+defmodule Hotsoup.Router.ClientTest.MyClient do
+  use Hotsoup.Router.Client
+  use Hotsoup.Logger
+  
+  def init(args) do
+    {:ok, %{master: args[:master],
+            nodes: []}}
+  end
 
-		match "42", state do
-      Hotsoup.Logger.info ["Received 42: ", jnode, ", default"]
-			state
-		end
+  match "42", state = %{master: master, nodes: [] = nodes} do
+    send(master, {:match, :rule1})
+    {:noreply, %{state | nodes: [jnode | nodes]}}
+  end
+
+  match "42", state = %{master: master, nodes: [:node42] = nodes} do
+    send(master, {:match, :rule2})
+    {:noreply, %{state | nodes: [jnode | nodes]}}
+  end
+
+  match "[*, (?<val>_)]", %{master: master} = state,
+    when: List.first(val) == 42
+  do
+    send(master, {:match, :rule3})
+    {:noreply, state}
+  end
+
+  defp check_some_properties(l) do
+    l == ["foo"]
+  end
+
+  match "[*, (?<v1>_), {_: (?<v2>)}]", %{master: master} = state,
+    when: check_some_properties(v2),
+    when: List.first(Enum.reverse(v1)) == 42
+  do
+    send(master, {:match, :rule4})
+    {:noreply, state}
   end
 end
 
+defmodule Hotsoup.Router.ClientTest do
+  use ExUnit.Case
+  require Helper
 
-# defmodule Hotsoup.Router.ClientTest do
-#   use ExUnit.Case
-#   require Helper
-  
-#   defmodule MySimplestClient do
-#     use Hotsoup.Router.Client
-#     use Hotsoup.Logger
-    
-#     match "42" do
-#       Hotsoup.Logger.info ["Received 42: ", jnode, ", history: ", state]
-#       [jnode | state]
-#     end
-#   end
+  setup do
+    alias Hotsoup.Router.ClientTest.MyClient
+    Process.flag(:trap_exit, true)
+    {:ok, pid} = MyClient.start_link([master: self])
+    {:ok, [pid: pid]}
+  end
 
-#   test "Route one node then kill with non routable node", _context do
-#     use Hotsoup.Logger
-#     Process.flag(:trap_exit, true)
+  test "route depending on state", context do
+    GenServer.cast(context[:pid], {:node, "42", :node42})
+    assert_receive {:match, :rule1}
 
-#     {:ok, pid} = MySimplestClient.start_link([])
-#     GenServer.cast(pid, {:node, "42", :ok})
-#     GenServer.cast(pid, {:node, "DIE", :ok})
-#     Helper.wait(1000)
+    GenServer.cast(context[:pid], {:node, "42", :other})
+    assert_receive {:match, :rule2}
+  end
 
-#     assert(receive do
-#              {:EXIT, ^pid, {:nomatch, {:node, "DIE", :ok}}} -> true
-#              _ -> false
-#            after
-#              1000 -> false
-#            end)
-#   end
+  test "by default, die if no route", context do
+    GenServer.cast(context[:pid], {:node, "DIE", :no})
+    assert_receive {:EXIT, _, _}
+  end
 
-#   defmodule MyClient do
-#     use Hotsoup.Router.Client
-#     use Hotsoup.Logger
+  test "one :when cond evaluated", context do
+    pid = context[:pid]
 
-#     def init(_args) do
-#       Hotsoup.Logger.info(["INIT :) :)"])
-#       {:ok, %{nodes: []}}
-#     end
+    GenServer.cast(pid, {:node, "[*, (?<val>_)]", {:ok, [v2: ["toto"], val: [13, 42]]}}) # won't match
+    GenServer.cast(pid, {:node, "[*, (?<val>_)]", {:ok, [v2: ["toto"], val: [42, 13]]}}) # will match
+    assert_receive {:match, :rule3}
+    assert Process.info(pid)[:messages] == [] # all messages processed
+  end
 
-#     def nomatch(node, state) do
-#       Hotsoup.Logger.info([" No match for node", node, " with state ", state])
-#       # super(node, state)
-#       {:noreply, state}
-#     end
+  test "many :when cond evaluated", context do
+    pid = context[:pid]
 
-#     match "42" do
-#       %{nodes: nodes} = state
-#       Hotsoup.Logger.info ["Received 42: ", jnode, ", history: ", nodes]
-#       %{state | nodes: [jnode | nodes]}
-#     end
-    
-#     match "[*]" do
-#       %{nodes: nodes} = state
-#       Hotsoup.Logger.info ["Received [*]: ", jnode, ", history: ", nodes]
-#       %{state | nodes: [jnode | nodes]}
-#     end
-    
-#     match "42" do
-#       %{nodes: nodes} = state
-#       Hotsoup.Logger.info ["Received 42 twice: ", jnode, ", history: ", nodes]
-#       %{state | nodes: [jnode | nodes]}
-#     end
-#   end
-    
-#   test "Route node to client", _context do
-#     Process.flag(:trap_exit, true)
-#     {:ok, pid} = MyClient.start_link
-#     GenServer.cast(pid, {:node, "42", :ok})
-#     GenServer.cast(pid, {:node, "DIE", :ok})
-#   end
-# end
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]", {:ok, [v2: ["foo"], v1: [42, "bar"]]}}) # won't match
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]", {:ok, [v2: ["neh"], v1: [13, 42]]}}) # won't match
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]", {:ok, [v2: ["foo"], v1: [1, 2, "foo", 42]]}}) # will match
+    assert_receive {:match, :rule4}
+    assert Process.info(pid)[:messages] == [] # all messages processed
+  end
+end
+
+defmodule Hotsoup.Router.ClientTest.MyCatchallClient do
+  use Hotsoup.Router.Client
+  use Hotsoup.Logger
+
+  def init(args) do
+    {:ok, %{master: args[:master]}}
+  end
+
+  def nomatch(%{master: master} = state, _node) do
+    send(master, {:match, :default})
+    {:noreply, state}
+  end
+end
+
+defmodule Hotsoup.Router.ClientCatchallTest do
+  use ExUnit.Case
+  require Helper
+
+  setup do
+    alias Hotsoup.Router.ClientTest.MyCatchallClient
+
+    Process.flag(:trap_exit, true)
+    {:ok, pid} = MyCatchallClient.start_link([master: self])
+    {:ok, [pid: pid]}
+  end
+
+  test "catch non matching node in nomatch/2", context do
+    pid = context[:pid]
+
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]", {:ok, [v2: ["foo"], v1: [1, 2, "foo", 42]]}})
+    assert_receive {:match, :default}
+  end
+end

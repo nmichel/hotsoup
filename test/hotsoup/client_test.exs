@@ -63,8 +63,6 @@ defmodule Hotsoup.Router.ClientTest do
 
   test "one :when cond evaluated", context do
     pid = context[:pid]
-
-    GenServer.cast(pid, {:node, "[*, (?<val>_)]", {:ok, [v2: ["toto"], val: [13, 42]]}}) # won't match
     GenServer.cast(pid, {:node, "[*, (?<val>_)]", {:ok, [v2: ["toto"], val: [42, 13]]}}) # will match
     assert_receive {:match, :rule3}
     assert Process.info(pid)[:messages] == [] # all messages processed
@@ -72,12 +70,24 @@ defmodule Hotsoup.Router.ClientTest do
 
   test "many :when cond evaluated", context do
     pid = context[:pid]
-
-    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]", {:ok, [v2: ["foo"], v1: [42, "bar"]]}}) # won't match
-    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]", {:ok, [v2: ["neh"], v1: [13, 42]]}}) # won't match
-    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]", {:ok, [v2: ["foo"], v1: [1, 2, "foo", 42]]}}) # will match
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]",
+                         {:ok, [v2: ["foo"], v1: [1, 2, "foo", 42]]}}) # will match
     assert_receive {:match, :rule4}
     assert Process.info(pid)[:messages] == [] # all messages processed
+  end
+
+  test "exception raised when no when: conditions set is fully met", context do
+    pid = context[:pid]
+
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]",
+                         {:ok, [v2: ["neh"], v1: [13, 42]]}}) # won't match
+    assert_receive {:EXIT, _, _}
+  end
+
+  test "exception raised when missing name in captures set", context do
+    pid = context[:pid]
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]", {:ok, [v2: ["foo"]]}}) # missing v1
+    assert_receive {:EXIT, _, {{:badmatch, :error}, _}}
   end
 end
 

@@ -27,14 +27,6 @@ defmodule Hotsoup.Router.ClientTest.MyClient do
   defp check_some_properties(l) do
     l == ["foo"]
   end
-
-  match "[*, (?<v1>_), {_: (?<v2>)}]", %{master: master} = state,
-    when: check_some_properties(v2),
-    when: List.first(Enum.reverse(v1)) == 42
-  do
-    send(master, {:match, :rule4})
-    {:noreply, state}
-  end
 end
 
 defmodule Hotsoup.Router.ClientTest do
@@ -68,11 +60,66 @@ defmodule Hotsoup.Router.ClientTest do
     assert Process.info(pid)[:messages] == [] # all messages processed
   end
 
+  test "exception raised when missing name in captures set", context do
+    GenServer.cast(context[:pid], {:node, "[*, (?<val>_)]", {:ok, [v2: ["foo"]]}}) # missing val
+    assert_receive {:EXIT, _, {{:badmatch, :error}, _}}
+  end
+end
+
+defmodule Hotsoup.Router.ClientTest.MyWhenClient do
+  use Hotsoup.Router.Client
+  use Hotsoup.Logger
+  
+  def init(args) do
+    {:ok, %{master: args[:master],
+            nodes: []}}
+  end
+
+  defp check_some_properties(l) do
+    l == ["foo"]
+  end
+
+  match "[*, (?<v1>_), {_: (?<v2>)}]", %{master: master} = state,
+    when: check_some_properties(v2),
+    when: List.first(Enum.reverse(v1)) == 42
+  do
+    send(master, {:match, :rule4})
+    {:noreply, state}
+  end
+
+  match "[*, (?<v1>_), {_: (?<v2>)}]", %{master: master} = state,
+    when: check_some_properties(v2)
+  do
+    send(master, {:match, :rule5})
+    {:noreply, state}
+  end
+end
+
+
+defmodule Hotsoup.Router.WhenClientTest do
+  use ExUnit.Case
+  require Helper
+
+  setup do
+    alias Hotsoup.Router.ClientTest.MyWhenClient
+    Process.flag(:trap_exit, true)
+    {:ok, pid} = MyWhenClient.start_link([master: self])
+    {:ok, [pid: pid]}
+  end
+
   test "many :when cond evaluated", context do
     pid = context[:pid]
     GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]",
                          {:ok, [v2: ["foo"], v1: [1, 2, "foo", 42]]}}) # will match
     assert_receive {:match, :rule4}
+    assert Process.info(pid)[:messages] == [] # all messages processed
+  end
+
+  test "another :when conditions set match", context do
+    pid = context[:pid]
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]",
+                         {:ok, [v2: ["foo"], v1: [1, 2]]}}) # will match
+    assert_receive {:match, :rule5}
     assert Process.info(pid)[:messages] == [] # all messages processed
   end
 
@@ -82,12 +129,6 @@ defmodule Hotsoup.Router.ClientTest do
     GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]",
                          {:ok, [v2: ["neh"], v1: [13, 42]]}}) # won't match
     assert_receive {:EXIT, _, _}
-  end
-
-  test "exception raised when missing name in captures set", context do
-    pid = context[:pid]
-    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]", {:ok, [v2: ["foo"]]}}) # missing v1
-    assert_receive {:EXIT, _, {{:badmatch, :error}, _}}
   end
 end
 
@@ -105,7 +146,7 @@ defmodule Hotsoup.Router.ClientTest.MyCatchallClient do
   end
 end
 
-defmodule Hotsoup.Router.ClientCatchallTest do
+defmodule Hotsoup.Router.CatchallClientTest do
   use ExUnit.Case
   require Helper
 

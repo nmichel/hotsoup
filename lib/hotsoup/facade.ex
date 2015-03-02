@@ -1,8 +1,8 @@
 defmodule Hotsoup.Router.Facade do
   defmacro __using__(_opts) do
     quote do
-      def nomatch(state, jnode) do
-        {:stop, {:nomatch, jnode}, state}
+      def nomatch(jnode, state) do
+        {:nomatch, jnode, state}
       end
 
       defoverridable [nomatch: 2]
@@ -30,14 +30,14 @@ defmodule Hotsoup.Router.Facade do
                        bindings = expr |> extract_capture_names |> build_bindings
                        body = build_body(conds_code)
                        svar = Macro.var(:svar, nil)
-                       def do_match(unquote(expr), svar = unquote(state), var!(jnode)) do
+                       def do_match(unquote(expr), var!(jnode), svar = unquote(state)) do
                          unquote_splicing(bindings)
                          unquote(body)
                        end
                    end
 
-      def do_match(pattern, state, jnode) do
-        nomatch(state, jnode)
+      def do_match(pattern, jnode, state) do
+        nomatch(jnode, state)
       end
     end
   end

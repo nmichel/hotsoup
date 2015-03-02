@@ -23,10 +23,6 @@ defmodule Hotsoup.Router.ClientTest.MyClient do
     send(master, {:match, :rule3})
     {:noreply, state}
   end
-
-  defp check_some_properties(l) do
-    l == ["foo"]
-  end
 end
 
 defmodule Hotsoup.Router.ClientTest do
@@ -140,7 +136,7 @@ defmodule Hotsoup.Router.ClientTest.MyCatchallClient do
     {:ok, %{master: args[:master]}}
   end
 
-  def nomatch(%{master: master} = state, _node) do
+  def nomatch(_node, %{master: master} = state) do
     send(master, {:match, :default})
     {:noreply, state}
   end

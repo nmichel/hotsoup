@@ -1,5 +1,5 @@
-defmodule Hotsoup.Router.FacadeTest.MyClient do
-  use Hotsoup.Router.Facade
+defmodule Hotsoup.Client.FacadeTest.MyClient do
+  use Hotsoup.Client.Facade
 
   match "\"foo\"", %{case: :case1} do
     :case1
@@ -44,14 +44,14 @@ defmodule Hotsoup.Router.FacadeTest.MyClient do
   defp check_some_properties(l) when is_list(l) do
     l == ["foo", :foo]
   end
-  defp check_some_properties(l) do
+  defp check_some_properties(_l) do
     false
   end
 end
 
-defmodule Hotsoup.Router.FacadeTest do
+defmodule Hotsoup.Client.FacadeTest do
   use ExUnit.Case
-  alias Hotsoup.Router.FacadeTest.MyClient
+  alias Hotsoup.Client.FacadeTest.MyClient
 
   test "match first on expression, then on data", _context do
     assert :case2 == MyClient.do_match("42", :mock, %{case: :case1})

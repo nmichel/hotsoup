@@ -1,7 +1,6 @@
-defmodule Hotsoup.Router.ClientTest.MyClient do
-  use Hotsoup.Router.Client
-  use Hotsoup.Logger
-  
+defmodule Hotsoup.Client.GenServerTest.MyClient do
+  use Hotsoup.Client.GenServer
+
   def init(args) do
     {:ok, %{master: args[:master],
             nodes: []}}
@@ -25,12 +24,12 @@ defmodule Hotsoup.Router.ClientTest.MyClient do
   end
 end
 
-defmodule Hotsoup.Router.ClientTest do
+defmodule Hotsoup.Client.GenServerTest do
   use ExUnit.Case
   require Helper
 
   setup do
-    alias Hotsoup.Router.ClientTest.MyClient
+    alias Hotsoup.Client.GenServerTest.MyClient
     Process.flag(:trap_exit, true)
     {:ok, pid} = MyClient.start_link([master: self])
     {:ok, [pid: pid]}
@@ -62,10 +61,9 @@ defmodule Hotsoup.Router.ClientTest do
   end
 end
 
-defmodule Hotsoup.Router.ClientTest.MyWhenClient do
-  use Hotsoup.Router.Client
-  use Hotsoup.Logger
-  
+defmodule Hotsoup.Client.GenServerTest.MyWhenClient do
+  use Hotsoup.Client.GenServer
+
   def init(args) do
     {:ok, %{master: args[:master],
             nodes: []}}
@@ -92,12 +90,12 @@ defmodule Hotsoup.Router.ClientTest.MyWhenClient do
 end
 
 
-defmodule Hotsoup.Router.WhenClientTest do
+defmodule Hotsoup.Client.GenServerWhenTest do
   use ExUnit.Case
   require Helper
 
   setup do
-    alias Hotsoup.Router.ClientTest.MyWhenClient
+    alias Hotsoup.Client.GenServerTest.MyWhenClient
     Process.flag(:trap_exit, true)
     {:ok, pid} = MyWhenClient.start_link([master: self])
     {:ok, [pid: pid]}
@@ -128,9 +126,8 @@ defmodule Hotsoup.Router.WhenClientTest do
   end
 end
 
-defmodule Hotsoup.Router.ClientTest.MyCatchallClient do
-  use Hotsoup.Router.Client
-  use Hotsoup.Logger
+defmodule Hotsoup.Client.GenServerTest.MyCatchallClient do
+  use Hotsoup.Client.GenServer
 
   def init(args) do
     {:ok, %{master: args[:master]}}
@@ -142,12 +139,12 @@ defmodule Hotsoup.Router.ClientTest.MyCatchallClient do
   end
 end
 
-defmodule Hotsoup.Router.CatchallClientTest do
+defmodule Hotsoup.Client.GenServerCatchallTest do
   use ExUnit.Case
   require Helper
 
   setup do
-    alias Hotsoup.Router.ClientTest.MyCatchallClient
+    alias Hotsoup.Client.GenServerTest.MyCatchallClient
 
     Process.flag(:trap_exit, true)
     {:ok, pid} = MyCatchallClient.start_link([master: self])

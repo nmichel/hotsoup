@@ -1,9 +1,8 @@
-defmodule Hotsoup.Router.Client do
+defmodule Hotsoup.Client.GenServer do
   defmacro __using__(_opts) do
     quote location: :keep do
       use GenServer
-      use Hotsoup.Router.Facade
-      use Hotsoup.Logger
+      use Hotsoup.Client.Facade
 
       def start_link(args) do
         GenServer.start_link(__MODULE__, args)

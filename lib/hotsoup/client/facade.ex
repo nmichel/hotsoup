@@ -1,4 +1,4 @@
-defmodule Hotsoup.Router.Facade do
+defmodule Hotsoup.Client.Facade do
   defmacro __using__(_opts) do
     quote do
       def nomatch(jnode, state) do

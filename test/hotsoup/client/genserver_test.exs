@@ -26,7 +26,6 @@ end
 
 defmodule Hotsoup.Client.GenServerTest do
   use ExUnit.Case
-  require Helper
 
   setup do
     alias Hotsoup.Client.GenServerTest.MyClient
@@ -92,7 +91,6 @@ end
 
 defmodule Hotsoup.Client.GenServerWhenTest do
   use ExUnit.Case
-  require Helper
 
   setup do
     alias Hotsoup.Client.GenServerTest.MyWhenClient
@@ -141,7 +139,6 @@ end
 
 defmodule Hotsoup.Client.GenServerCatchallTest do
   use ExUnit.Case
-  require Helper
 
   setup do
     alias Hotsoup.Client.GenServerTest.MyCatchallClient

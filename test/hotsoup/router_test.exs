@@ -1,58 +1,73 @@
 defmodule Hotsoup.RouterTest do
   use ExUnit.Case
-  doctest Hotsoup
-
-  defmodule Client do
-    def loop(tgt) do
-      receive do
-        :stop ->
-          :ok
-        n ->
-          send tgt, n
-          loop tgt
-      end
-    end
-
-    def start(tgt) do
-      Task.start(fn() -> loop(tgt) end)
-    end
-    
-    def expect(m) do
-      receive do
-        ^m -> true
-        _ -> false
-      end
-    end
-    
-    def do_not_expect(m) do
-      receive do
-        ^m -> false
-      after
-        1000 -> true
-      end
-    end
-  end
 
   setup do
     {:ok, rid} = Hotsoup.Router.start_link
-    {:ok, cid} = Client.start(self())
-    {:ok, [rid: rid, cid: cid]}
+    {:ok, [rid: rid]}
   end
 
-  test "Can subscribe listener", %{rid: rid, cid: cid} do
-    n = :jsx.decode("42")
-    Hotsoup.Router.subscribe(rid, "42", cid)
-    Hotsoup.Router.route(rid, n)
-    assert Client.expect({n, [{}]})
+  test "Can subscribe listener", %{rid: rid} do
+    jnode = :jsx.decode("42")
+
+    Hotsoup.Router.subscribe(rid, "42", self)
+    Hotsoup.Router.route(rid, jnode)
+    assert_receive {^jnode, [{}]}
   end
 
-  test "Can unsubscribe listener", %{rid: rid, cid: cid} do
-    n = :jsx.decode("42")
-    Hotsoup.Router.subscribe(rid, "42", cid)
-    Hotsoup.Router.route(rid, n)
-    assert Client.expect({n, [{}]})
-    Hotsoup.Router.unsubscribe(rid, cid)
-    Hotsoup.Router.route(rid, n)
-    assert Client.do_not_expect({n, [{}]})
+  test "Can unsubscribe listener", %{rid: rid} do
+    jnode = :jsx.decode("42")
+    
+    Hotsoup.Router.subscribe(rid, "42", self)
+    Hotsoup.Router.route(rid, jnode)
+    assert_receive {^jnode, [{}]}
+    
+    Hotsoup.Router.unsubscribe(rid, self)
+    Hotsoup.Router.route(rid, jnode)
+    refute_receive {^jnode, [{}]}
+  end
+
+  test "Subscribe n times (same process), route once. Get ONCE", %{rid: rid} do
+    jnode = :jsx.decode("42")
+    count = 100
+
+    Stream.repeatedly(fn -> Hotsoup.Router.subscribe(rid, "42", self) end)
+    |> Enum.take(count)
+  
+    Hotsoup.Router.route(rid, jnode)
+    
+    assert_receive {^jnode, [{}]}
+  end
+
+  test "Subscribe n times (different processes), route once. Get n times", %{rid: rid} do
+    jnode = :jsx.decode("42")
+    count = 100
+    master = self
+    
+    Stream.repeatedly(fn -> Task.start(fn ->
+                                         Hotsoup.Router.subscribe(rid, "42", self)
+                                         send(master, :ready)
+                                         receive do
+                                           r = {^jnode, _} ->
+                                             send(master, r)
+                                         end
+                                       end)
+                      end)
+    |> Enum.take(count)
+  
+    Stream.repeatedly(fn ->
+                        receive do
+                          :ready -> :ok
+                        end
+                      end)
+    |> Enum.take(count)
+    
+    Hotsoup.Router.route(rid, jnode)
+    
+    Stream.repeatedly(fn ->
+                        receive do
+                          {^jnode, [{}]} -> :ok
+                        end
+                      end)
+    |> Enum.take(count)
   end
 end

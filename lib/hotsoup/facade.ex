@@ -30,7 +30,7 @@ defmodule Hotsoup.Router.Facade do
                        bindings = expr |> extract_capture_names |> build_bindings
                        body = build_body(conds_code)
                        svar = Macro.var(:svar, nil)
-                       def do_match(unquote(expr), var!(jnode), svar = unquote(state)) do
+                       def do_match(unquote(expr), var!(jnode), unquote(svar) = unquote(state)) do
                          unquote_splicing(bindings)
                          unquote(body)
                        end
@@ -78,9 +78,9 @@ defmodule Hotsoup.Router.Facade do
   end
 
   def build_body([]) do
-    quote bind_quoted: [state: Macro.var(:state, nil),
+    quote bind_quoted: [svar: Macro.var(:svar, nil),
                         jnode: Macro.var(:jnode, nil)] do
-      nomatch(state, jnode)
+      nomatch(svar, jnode)
     end
   end
   def build_body([{conds, code} | tail]) do
@@ -100,7 +100,7 @@ defmodule Hotsoup.Router.Facade do
     |> Enum.reduce(true,
                    fn({:when, c}, acc) ->
                        quote do
-                         unquote(c) and unquote(acc)
+                         unquote(acc) and unquote(c)
                        end
                    end)
   end

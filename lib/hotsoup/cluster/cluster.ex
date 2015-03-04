@@ -93,8 +93,8 @@ defmodule Hotsoup.Cluster do
     state
   end
 
-  defp do_get_router(state = %{routers: routers, by_pattern: by_pattern}, opts) do
-    case Hotsoup.Cluster.Supervisor.start_router(Dict.merge(opts, [routers: routers, by_pattern: by_pattern])) do
+  defp do_get_router(state = %{by_pattern: by_pattern}, opts) do
+    case Hotsoup.Cluster.Supervisor.start_router(Dict.merge(opts, [by_pattern: by_pattern])) do
       {:ok, pid} ->
         {{:ok, pid}, add_router(state, pid)}
       _ ->
@@ -104,13 +104,11 @@ defmodule Hotsoup.Cluster do
 
   defp add_router(state = %{routers: routers}, router_id) do
     Process.link(router_id)
-    Enum.each(routers, &Hotsoup.Router.add_router(&1, router_id))
     %{state | routers: [router_id | routers]}
   end
   
   defp remove_router(state = %{routers: routers}, router_id) do
     Process.unlink(router_id)
-    Enum.each(routers, &Hotsoup.Router.remove_router(&1, router_id))
     %{state | routers: Enum.filter(routers, &(&1 != router_id))}
   end
 

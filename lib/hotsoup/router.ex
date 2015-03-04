@@ -31,24 +31,12 @@ defmodule Hotsoup.Router do
     GenServer.cast(rid, {:route, node})
   end
 
-  def propagate(rid, node) do
-    GenServer.cast(rid, {:propagate, node})
-  end
-
-  def add_router(rid, other_id) do
-    GenServer.cast(rid, {:add_router, other_id})
-  end
-
-  def remove_router(rid, other_id) do
-    GenServer.cast(rid, {:remove_router, other_id})
-  end
-
   ## Callbacks GenServer
 
   def init([opts]) do
     Process.flag(:trap_exit, true)
 
-    %{ttl: ttl, routers: routers, by_pattern: by_pattern} = Dict.merge(default_options, opts)
+    %{ttl: ttl, by_pattern: by_pattern} = Dict.merge(default_options, opts)
     
     ref = 
       case ttl do
@@ -57,9 +45,7 @@ defmodule Hotsoup.Router do
         delay when is_integer(delay) ->
           Process.send_after(self(), :expired, ttl)
       end
-      
-    Enum.each(routers, &Process.link(&1))
-    
+
     by_pattern = 
       Stream.map(by_pattern, fn({pattern, targets}) ->
                                epm = :ejpet.compile(pattern)
@@ -71,7 +57,6 @@ defmodule Hotsoup.Router do
       |> Enum.into(%{})
 
     {:ok, %{by_pattern: by_pattern,
-            routers:    routers,
             timer:      ref}}
   end
 
@@ -96,33 +81,14 @@ defmodule Hotsoup.Router do
     state = do_unsubscribe(state, target)
     {:noreply, state}
   end
-  def handle_cast({:add_router, router_id}, state) do
-    Hotsoup.Logger.info(["Adding router ", router_id])
-    state = do_add_router(state, router_id)
-    {:noreply, state}
-  end
-  def handle_cast({:propagate, node}, state) do
-    Hotsoup.Logger.info(["Propagating node", node])
-    do_propagate(state, node)
-    {:noreply, state}
-  end
-  def handle_cast({:remove_router, router_id}, state) do
-    Hotsoup.Logger.info(["Removing router ", router_id])
-    state = do_remove_router(state, router_id)
-    {:noreply, state}
-  end
-  
+
   def handle_info(:expired, state) do
     Hotsoup.Logger.info(["Router [", self(), "] expired"])
     {:stop, :normal, state}
   end
   def handle_info({:EXIT, pid, _reason}, state) do
     Hotsoup.Logger.info(["Process [", pid, "] exited"])
-    state =
-      state
-      |> do_unsubscribe(pid)
-      |> do_remove_router(pid)
-    {:noreply, state}
+    {:noreply, do_unsubscribe(state, pid)}
   end
 
   def terminate(_reason, _state) do
@@ -166,7 +132,7 @@ defmodule Hotsoup.Router do
     %{state | by_pattern: by_pattern}
   end
 
-  defp do_route(state = %{routers: routers}, node) do
+  defp do_route(state, node) do
     do_propagate(state, node)
   end
   
@@ -183,23 +149,6 @@ defmodule Hotsoup.Router do
                                   :ok
                               end
                           end)
-  end
-
-  defp do_add_router(state = %{routers: routers}, router_id) do
-    routers = 
-      case Enum.find(routers, &(&1 == router_id)) do
-        nil ->
-          Process.link(router_id)
-          [router_id | routers]
-        _ ->
-          routers
-      end
-    %{state | routers: routers}
-  end
-
-  defp do_remove_router(state = %{routers: routers}, router_id) do
-    Process.unlink(router_id)
-    %{state | routers: Enum.reject(routers, &(&1 == router_id))}
   end
 
   defp do_dump(%{by_pattern: by_pattern}) do

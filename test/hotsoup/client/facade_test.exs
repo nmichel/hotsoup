@@ -83,4 +83,8 @@ defmodule Hotsoup.Client.FacadeTest do
   test "error caused when variables present in expressions are not bound event if all conditions are met" do
     {:badmatch, _} = catch_error MyClient.do_match("[*, (?<v1>_), {_: (?<v2>)}]", {:mock_with_captures, [v2: ["foo", :foo]]}, :no_match_data)
   end
+  
+  test "can get watched expressions" do
+    assert ["\"foo\"", "42", "[*, (?<v1>_), {_: (?<v2>)}]", "[*, (?<val>_)]"] == MyClient.expressions |> Enum.sort(&(&1 < &2))
+  end
 end

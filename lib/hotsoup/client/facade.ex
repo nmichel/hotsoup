@@ -25,6 +25,13 @@ defmodule Hotsoup.Client.Facade do
                                                                              end)}
                                              end)
 
+      @expressions Stream.map(@matchers_by_exp, fn({{expr, _state}, _conds_code}) -> expr end)
+                   |> Enum.uniq
+
+      def expressions do
+        @expressions
+      end
+
       @matchers_by_exp
       |> Enum.each fn({{expr, state}, conds_code}) ->
                        bindings = expr |> extract_capture_names |> build_bindings

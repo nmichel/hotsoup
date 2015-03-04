@@ -29,7 +29,8 @@ defmodule Hotsoup.ClusterTest do
                         end
                       end)
     |> Enum.take(count)
-    assert({:ok, []} == Hotsoup.Cluster.get_stats(:routers))
+    
+    assert [] == Process.info(self)[:messages]
   end
 
   test "Route one / get one", context do
@@ -54,5 +55,33 @@ defmodule Hotsoup.ClusterTest do
     |> Hotsoup.Router.route(jnode)
 
     assert_receive {^jnode, [{}]}
+  end
+  
+  test "Subscribe once, route N times, receive N times.", context do
+    count = context[:count]
+    
+    {:ok, rid} = Hotsoup.Cluster.get_router
+    Hotsoup.Cluster.subscribe(self, "42")
+    
+    routers =  Stream.repeatedly(fn ->
+                                   {:ok, rid} = Hotsoup.Cluster.get_router
+                                   rid
+                                 end)
+               |> Stream.take(count-1)
+               |> Enum.to_list
+    routers = [rid | routers]
+
+    jnode = :jsx.decode("42")
+
+    Task.start(fn -> Enum.each(routers, &Hotsoup.Router.route(&1, jnode)) end)
+    
+    Stream.repeatedly(fn ->
+                        receive do
+                          {^jnode, [{}]} -> :ok
+                        end
+                      end)
+    |> Enum.take(count)
+    
+    refute_receive {^jnode, [{}]}
   end
 end

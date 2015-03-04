@@ -7,7 +7,8 @@ defmodule Hotsoup.Router do
   # API
 
   def default_options do
-    %{ttl: :infinite}
+    %{ttl:        :infinite,
+      by_pattern: %{}}
   end
 
   def start_link(opts \\ default_options) do
@@ -45,7 +46,10 @@ defmodule Hotsoup.Router do
   ## Callbacks GenServer
 
   def init([opts]) do
-    %{ttl: ttl} = Dict.merge(default_options, opts)
+    Process.flag(:trap_exit, true)
+
+    %{ttl: ttl, routers: routers, by_pattern: by_pattern} = Dict.merge(default_options, opts)
+    
     ref = 
       case ttl do
         :infinite ->
@@ -53,13 +57,25 @@ defmodule Hotsoup.Router do
         delay when is_integer(delay) ->
           Process.send_after(self(), :expired, ttl)
       end
-    Process.flag(:trap_exit, true)
-    {:ok, %{by_pattern: %{},
-            routers:    [],
+      
+    Enum.each(routers, &Process.link(&1))
+    
+    by_pattern = 
+      Stream.map(by_pattern, fn({pattern, targets}) ->
+                               epm = :ejpet.compile(pattern)
+                               Enum.each(targets, fn({target}) ->
+                                                    Process.link(target)
+                                                  end)
+                               {pattern, {epm, targets}}
+                             end)
+      |> Enum.into(%{})
+
+    {:ok, %{by_pattern: by_pattern,
+            routers:    routers,
             timer:      ref}}
   end
 
-  def handle_call({:debug, :dump}, from, state) do
+  def handle_call({:debug, :dump}, _from, state) do
     do_dump(state)
     {:reply, :ok, state}
   end
@@ -100,7 +116,7 @@ defmodule Hotsoup.Router do
     Hotsoup.Logger.info(["Router [", self(), "] expired"])
     {:stop, :normal, state}
   end
-  def handle_info({:EXIT, pid, reason}, state) do
+  def handle_info({:EXIT, pid, _reason}, state) do
     Hotsoup.Logger.info(["Process [", pid, "] exited"])
     state =
       state
@@ -141,23 +157,21 @@ defmodule Hotsoup.Router do
       |> Stream.map(fn({pattern, {epm, targets}}) ->
                         {pattern, {epm, :lists.keydelete(target, 1, targets)}}
                     end)
-      |> Stream.filter(fn({pattern, {_epm, []}}) ->
+      |> Stream.filter(fn({_pattern, {_epm, []}}) ->
                            false
-                         ({pattern, {_epm, _targets}}) ->
+                         ({_pattern, {_epm, _targets}}) ->
                            true
                        end)
       |> Enum.into(%{})
     %{state | by_pattern: by_pattern}
   end
 
-  defp do_route(state = %{by_pattern: by_pattern,
-                          routers: routers}, node) do
+  defp do_route(state = %{routers: routers}, node) do
     do_propagate(state, node)
-    Enum.each(routers, &propagate(&1, node))
   end
   
-  defp do_propagate(state = %{by_pattern: by_pattern}, node) do
-    Enum.each(by_pattern, fn({pattern, {epm, targets}}) ->
+  defp do_propagate(%{by_pattern: by_pattern}, node) do
+    Enum.each(by_pattern, fn({_pattern, {epm, targets}}) ->
                               case :ejpet.run(node, epm) do
                                 {true, captures} ->
                                   Enum.each targets, fn({tgt}) ->

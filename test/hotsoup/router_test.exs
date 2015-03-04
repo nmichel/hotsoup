@@ -71,3 +71,20 @@ defmodule Hotsoup.RouterTest do
     |> Enum.take(count)
   end
 end
+
+defmodule Hotsoup.ManyRouterTest do
+  use ExUnit.Case
+
+  setup do
+    {:ok, rid1} = Hotsoup.Router.start_link
+    {:ok, rid2} = Hotsoup.Router.start_link
+    {:ok, [rid1: rid1, rid2: rid2]}
+  end
+
+  test "Routers are independant",  %{rid1: rid1, rid2: rid2} do
+    jnode = :jsx.decode("42")
+    Hotsoup.Router.subscribe(rid1, "42", self)
+    Hotsoup.Router.route(rid2, jnode)
+    refute_receive {^jnode, [{}]}
+  end
+end

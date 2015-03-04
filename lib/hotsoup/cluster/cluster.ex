@@ -34,34 +34,35 @@ defmodule Hotsoup.Cluster do
   def init(_opts) do
     Hotsoup.Logger.info(["started"])
     Process.flag(:trap_exit, true)
-    {:ok, %{routers: []}}
+    {:ok, %{by_pattern: %{},
+            routers: []}}
   end
   
-  def handle_call({:subscribe, client_id, pattern}, from, state) do
+  def handle_call({:subscribe, client_id, pattern}, _from, state) do
     Hotsoup.Logger.info(["Subscribing client [", client_id, "] for pattern [", pattern, "]"])
     {r, state} = subscribe_client_for_pattern(state, client_id, pattern)
     {:reply, r, state}
   end
-  def handle_call({:unsubscribe, client_id}, from, state) do
+  def handle_call({:unsubscribe, client_id}, _from, state) do
     Hotsoup.Logger.info(["Unsubscribing client [", client_id, "]"])
-    {r, state} = unsubscribe_client(state, client_id)
-    {:reply, r, state}
+    state = unsubscribe_client(state, client_id)
+    {:reply, :ok, state}
   end
-  def handle_call({:get_router, opts}, from, state) do
+  def handle_call({:get_router, opts}, _from, state) do
     Hotsoup.Logger.info(["Requesting router"])
     {r, state} = do_get_router(state, opts)
     {:reply, r, state}
   end
-  def handle_call({:stats, :routers}, from, state) do
+  def handle_call({:stats, :routers}, _from, state) do
     stats = do_get_stats(state, :routers)
     {:reply, {:ok, stats}, state}
   end
-  def handle_call({:debug, :dump}, from, state) do
+  def handle_call({:debug, :dump}, _from, state) do
     do_dump(state)
     {:reply, :ok, state}
   end
 
-  def handle_info({:EXIT, pid, reason}, state) do
+  def handle_info({:EXIT, pid, _reason}, state) do
     Hotsoup.Logger.info(["Process [", pid, "] is dead"])
     state =
       state
@@ -71,8 +72,9 @@ defmodule Hotsoup.Cluster do
   end
 
   # Internal
-  
+
   defp subscribe_client_for_pattern(state = %{routers: routers}, client_id, pattern) do
+    state = do_subscribe(state, pattern, client_id)
     Enum.each(routers, fn(rid) ->
                            no_error do
                              Hotsoup.Router.subscribe(rid, pattern, client_id)
@@ -82,6 +84,7 @@ defmodule Hotsoup.Cluster do
   end
   
   defp unsubscribe_client(state = %{routers: routers}, client_id) do
+    state = do_unsubscribe(state, client_id)
     Enum.each(routers, fn(router_id) ->
                            no_error do
                              Hotsoup.Router.unsubscribe(router_id, client_id)
@@ -90,8 +93,8 @@ defmodule Hotsoup.Cluster do
     state
   end
 
-  defp do_get_router(state, opts) do
-    case Hotsoup.Cluster.Supervisor.start_router(opts) do
+  defp do_get_router(state = %{routers: routers, by_pattern: by_pattern}, opts) do
+    case Hotsoup.Cluster.Supervisor.start_router(Dict.merge(opts, [routers: routers, by_pattern: by_pattern])) do
       {:ok, pid} ->
         {{:ok, pid}, add_router(state, pid)}
       _ ->
@@ -109,6 +112,38 @@ defmodule Hotsoup.Cluster do
     Process.unlink(router_id)
     Enum.each(routers, &Hotsoup.Router.remove_router(&1, router_id))
     %{state | routers: Enum.filter(routers, &(&1 != router_id))}
+  end
+
+  defp do_subscribe(state = %{by_pattern: by_pattern}, pattern, target) do
+    by_pattern = 
+      case Dict.fetch(by_pattern, pattern) do
+        :error ->
+          Process.link(target)
+          Dict.put(by_pattern, pattern, [{target}])
+        {:ok, targets} ->
+          case :lists.keyfind(target, 1, targets) do
+            false ->
+              Process.link(target)
+              Dict.put(by_pattern, pattern, [{target}|targets])
+            _ ->
+              by_pattern
+          end
+      end
+    %{state | by_pattern: by_pattern}
+  end
+
+  defp do_unsubscribe(state = %{by_pattern: by_pattern}, target) do
+    by_pattern = 
+      Stream.map(by_pattern, fn({pattern, targets}) ->
+                        {pattern, :lists.keydelete(target, 1, targets)}
+                    end)
+      |> Stream.filter(fn({_pattern, []}) ->
+                           false
+                         ({_pattern, _targets}) ->
+                           true
+                       end)
+      |> Enum.into(%{})
+    %{state | by_pattern: by_pattern}
   end
 
   defp do_dump(state) do

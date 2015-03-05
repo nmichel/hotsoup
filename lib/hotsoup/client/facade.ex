@@ -78,7 +78,15 @@ defmodule Hotsoup.Client.Facade do
                     va = String.to_atom(name)
                     v = Macro.var(va, nil)
                     quote do
-                      {:ok, l} = Keyword.fetch(elem(var!(jnode), 1), unquote(va))
+                      cap = elem(var!(jnode), 1)
+                      l =
+                        case Keyword.fetch(cap, unquote(va)) do
+                          :error ->
+                            {_, val} = Enum.find(cap, &(elem(&1, 0) == unquote(name)))
+                            val
+                          {:ok, val} ->
+                            val
+                        end
                       unquote(v) = l
                     end
                 end)

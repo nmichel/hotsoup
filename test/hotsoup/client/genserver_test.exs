@@ -56,7 +56,7 @@ defmodule Hotsoup.Client.GenServerTest do
 
   test "exception raised when missing name in captures set", context do
     GenServer.cast(context[:pid], {:node, "[*, (?<val>_)]", {:ok, [v2: ["foo"]]}}) # missing val
-    assert_receive {:EXIT, _, {{:badmatch, :error}, _}}
+    assert_receive {:EXIT, _, {{:badmatch, _}, _}}
   end
 end
 

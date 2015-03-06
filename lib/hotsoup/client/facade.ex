@@ -16,11 +16,11 @@ defmodule Hotsoup.Client.Facade do
   
   defmacro __before_compile__(_env) do
     quote unquote: false do
-      @matchers_by_exp @matchers |> Enum.group_by(fn({k, _expr, _state, _conds, _code}) ->
-                                                      k
+      @matchers_by_exp @matchers |> Enum.group_by(fn({expr, state, _conds, _code}) ->
+                                                      expr <> Macro.to_string(state)
                                                   end)
-                                 |> Enum.map(fn({k, v = [{_k, expr, state, _cond_0, _code_0}|_]}) ->
-                                                 {{expr, state}, Enum.map(v, fn({_k, _expr_n, _state_n, cond_n, code_n}) ->
+                                 |> Enum.map(fn({k, v = [{expr, state, _cond_0, _code_0}|_]}) ->
+                                                 {{expr, state}, Enum.map(v, fn({_expr_n, _state_n, cond_n, code_n}) ->
                                                                                  {cond_n, code_n}
                                                                              end)}
                                              end)
@@ -56,12 +56,11 @@ defmodule Hotsoup.Client.Facade do
   end
 
   defmacro match(expr, state, conds, [do: code]) do
-    quote bind_quoted: [key: expr <> Macro.to_string(state),
-                        expr: Macro.escape(expr),
+    quote bind_quoted: [expr: expr,
                         state: Macro.escape(state),
                         conds: Macro.escape(conds),
                         code: Macro.escape(code)] do
-      @matchers [{key, expr, state, conds, code} | @matchers]
+      @matchers [{expr, state, conds, code} | @matchers]
     end
   end
 

@@ -7,6 +7,21 @@ defmodule DSL do
       unquote(frag) <> ":_"
     end
   end
+  defp transform({:with, [key: fragk]}) do
+    transform({:with_key, fragk})
+  end
+  defp transform({:with, [value: fragv]}) do
+    transform({:with_value, fragv})
+  end
+  defp transform({:with, [key: fragk, value: fragv]}) do
+    quote bind_quoted: [fragk: transform(fragk),
+                        fragv: transform(fragv)] do
+      fragk <> ":" <> fragv
+    end
+  end
+  defp transform({:with, [value: fragv, key: fragk]}) do
+    transform({:with, [key: fragk, value: fragv]})
+  end
   defp transform({:with_value, val}) when is_binary(val) or is_binary(val) do
     "_:" <> Macro.to_string(val)
   end
@@ -79,7 +94,8 @@ defmodule Monitor do
   end
 
   @object object with_value: list([1, 2, :any]),
-                 with_key:   Bar.toto()
+                 with_key:   Bar.toto(),
+                 with:       [key: "neh", value: list([:any])]
   match @object, state do
     {:stop, :object}
   end

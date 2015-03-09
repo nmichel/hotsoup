@@ -45,11 +45,12 @@ defmodule Pong do
     super {0, {n, rid}}
   end
 
-  match @pong, state = {n, {n, rid}} do
+  @pattern @pong
+  match state = {n, {n, rid}} do
     Hotsoup.Router.route(rid, :jsx.decode("{'action': 'stop'}"))
     {:noreply, state}
   end
-  match @pong, {counter, inner = {_, rid}} do
+  match {counter, inner = {_, rid}} do
     Hotsoup.Router.route(rid, :jsx.decode("{'action': 'ping'}"))
     {:noreply, {counter+1, inner}}
   end
@@ -82,14 +83,12 @@ defmodule Monitor do
     super %{ping: 0, pong: 0, other: 0, total: 0}
   end
 
-  match @action, state,
-    when: action == ["ping"]
+  @pattern @action
+  match state, when: action == ["ping"]
   do
     {:noreply, %{state | ping: state[:ping]+1, total: state[:total]+1}}
   end
-
-  match @action, state,
-    when: action == ["pong"]
+  match state, when: action == ["pong"]
   do
     {:noreply, %{state | pong: state[:pong]+1, total: state[:total]+1}}
   end
@@ -107,13 +106,12 @@ defmodule Monitor do
   #   %{other: other, total: total} = state
   #   {:noreply, %{state | other: other+1, total: total+1}}
   # end
-  match @action, state,
-    when: action != ["stop"]
+  match state, when: action != ["stop"]
   do
     %{other: other, total: total} = state
     {:noreply, %{state | other: other+1, total: total+1}}
   end
-  match @action, state do
+  match state do
     # noop clause
     {:noreply, state}
   end

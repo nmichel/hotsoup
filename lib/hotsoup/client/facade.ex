@@ -49,6 +49,19 @@ defmodule Hotsoup.Client.Facade do
     end
   end
 
+  defmacro match(state, code) do
+    pattern = quote do: @pattern
+    quote do
+      match(unquote(pattern), unquote(state), [], unquote(code))
+    end
+  end
+
+  defmacro match(state, conds = [{:when, _} | _], code) do
+    pattern = quote do: @pattern
+    quote do
+      match(unquote(pattern), unquote(state), unquote(conds), unquote(code))
+    end
+  end
   defmacro match(expr, state, code) do
     quote do
       match(unquote(expr), unquote(state), [], unquote(code))

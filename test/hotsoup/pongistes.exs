@@ -7,7 +7,9 @@ defmodule Protocol do
       @pong   object with: [key: "action", value: "pong"]
       @start  object with: [key: "action", value: "start"]
       @stop   object with: [key: "action", value: "stop"]
-      @action object with: [key: "action", value: capture(:any, as: "action")]
+      
+      @variable "action"
+      @action object with: [key: "action", value: capture(:any, as: @variable)]
     end
   end
 end

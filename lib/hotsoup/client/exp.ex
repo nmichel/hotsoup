@@ -72,15 +72,45 @@ defmodule Hotsoup.Client.DSL do
   end
   
   defmacro capture(frag, [as: name]) when is_atom(name) do
-    quote bind_quoted: [frag: frag, 
-                        name: to_string(name)] do
+    quote bind_quoted: [name: to_string(name),
+                        frag: frag] do
       capture(frag, name)
     end
   end
-  defmacro capture(frag, [as: name]) when is_binary(name) do
-    quote bind_quoted: [name: name,
+  defmacro capture(frag, [as: name]) do
+    quote bind_quoted: [name: transform(name),
                         frag: transform(frag)] do
       "(?<" <> name <> ">" <> frag <> ")"
+    end
+  end
+  
+  defp default_modifiers do
+    [deep: false, global: false]
+  end
+  
+  defmacro set(constraints, modifiers) when is_list(constraints) do
+    modifiers = Keyword.merge(default_modifiers, modifiers)
+    {:ok, deep?} = Keyword.fetch(modifiers, :deep)
+    {:ok, global?} = Keyword.fetch(modifiers, :global)
+    constraints = Enum.map(constraints, &transform/1)
+    
+    quote bind_quoted: [constraints: constraints,
+                        deep?: deep?,
+                        global?: global?] do
+      open = deep? && "<!" || "<"
+      close = deep? && "!>" || ">"
+      ending = global? && "/g" || ""
+      base = Enum.at(constraints, 0)
+      
+      open
+      <>
+      Enum.reduce(Enum.drop(constraints, 1), base, fn(exp, acc) ->
+                                                     acc <> "," <> exp
+                                                   end)
+      <>
+      close
+      <>
+      ending
     end
   end
 end

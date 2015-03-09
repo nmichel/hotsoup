@@ -1,4 +1,4 @@
-defmodule DSL do
+defmodule Hotsoup.Client.DSL do
   defp transform({:with_key, key}) when is_binary(key) do
     Macro.to_string(key) <> ":_"
   end
@@ -31,6 +31,9 @@ defmodule DSL do
     end
   end
   defp transform(:any) do
+    "_"
+  end
+  defp transform(:some) do
     "*"
   end
   defp transform(:true) do
@@ -67,25 +70,24 @@ defmodule DSL do
       <> "}"
     end
   end
+  
+  defmacro capture(frag, [as: name]) when is_atom(name) do
+    quote bind_quoted: [frag: frag, 
+                        name: to_string(name)] do
+      capture(frag, name)
+    end
+  end
+  defmacro capture(frag, [as: name]) when is_binary(name) do
+    quote bind_quoted: [name: name,
+                        frag: transform(frag)] do
+      "(?<" <> name <> ">" <> frag <> ")"
+    end
+  end
 end
-
-
-# import DSL
-
-# toto = fn -> 
-#   "42"
-# end
-
-# list [1, foo.(), 3]
-# list [:any, 2, 3]
-# list [:any, "foo", 3]
-
-# object with_value: list([1, 2, :any]),
-#        with_key: toto.()
 
 defmodule Monitor do
   use Hotsoup.Client.Facade
-  import DSL
+  import Hotsoup.Client.DSL
 
   defmodule Bar do
     def toto do
@@ -93,15 +95,15 @@ defmodule Monitor do
     end
   end
 
-  @object object with_value: list([1, 2, :any]),
+  @object object with_value: list([1, 2, :some]),
                  with_key:   Bar.toto(),
-                 with:       [key: "neh", value: list([:any])]
+                 with:       [key: "neh", value: list([:some])]
   match @object, state do
     {:stop, :object}
   end
 
   @capturelist "[(?<val>_)]"
-  @simplelist  list([1, :any, 42])
+  @simplelist  list([1, :some, 42])
 
   @expr "42"
   match @expr, state do

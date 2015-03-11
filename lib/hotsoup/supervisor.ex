@@ -16,7 +16,7 @@ defmodule Hotsoup.Supervisor do
     [] 
     |> addchild(:supervisor, Hotsoup.Cluster.Supervisor, [])
     |> addchild(:worker, Hotsoup.Cluster, [])
-    |> supervise([strategy: :one_for_one])
+    |> supervise([strategy: :one_for_all])
   end
 
   # Internal

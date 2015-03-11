@@ -150,8 +150,7 @@ defmodule Pongistes.Test do
     Pongistes.Starter.start_link
     {:ok, monitor} = Pongistes.Monitor.start_link
     
-    {:ok, rid} = Hotsoup.Cluster.get_router(ttl: 1000)
-    Hotsoup.Router.route(rid, :jsx.decode("{'action': 'start'}"))
+    Hotsoup.route(:jsx.decode("{'action': 'start'}"))
     
     assert_receive {:EXIT, ^monitor, {_, {:stop, %{other: 2, ping: ^ping, pong: ^pong, total: ^total}}}}
   end

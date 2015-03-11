@@ -10,6 +10,7 @@ defmodule Hotsoup.Mixfile do
 
   def application do
     [applications: [:logger],
+     env: [backend: :jsx],
      mod: {Hotsoup, []}]
   end
 

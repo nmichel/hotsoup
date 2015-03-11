@@ -1,9 +1,10 @@
 defmodule Pongistes do
   defmodule Protocol do
     defmacro __using__(_opts) do
-      import Hotsoup.Client.Expr
-      
       quote do
+        import Hotsoup
+        import Hotsoup.Client.Expr
+      
         @ping   object with: [key: "action", value: "ping"]
         @pong   object with: [key: "action", value: "pong"]
         @start  object with: [key: "action", value: "start"]
@@ -20,13 +21,12 @@ defmodule Pongistes do
     use Protocol
     
     def init(nil) do
-      {:ok, rid} = Hotsoup.Cluster.get_router(ttl: 1000)
+      {:ok, rid} = get_router(ttl: 1000)
       super {1, rid}
     end
   
     match @ping, {counter, rid} do
-    # match "{\"action\": \"ping\"}", {counter, rid} do
-      Hotsoup.Router.route(rid, :jsx.decode("{'action': 'pong'}"))
+      decode("{'action': 'pong'}") |> route(rid)
       {:noreply, {counter+1, rid}}
     end
   
@@ -44,17 +44,17 @@ defmodule Pongistes do
     end
     
     def init(n) do
-      {:ok, rid} = Hotsoup.Cluster.get_router(ttl: 1000)
+      {:ok, rid} = get_router(ttl: 1000)
       super {1, {n, rid}}
     end
   
     @pattern @pong
     match state = {n, {n, rid}} do
-      Hotsoup.Router.route(rid, :jsx.decode("{'action': 'stop'}"))
+      decode("{'action': 'stop'}") |> route(rid)
       {:noreply, state}
     end
     match {counter, inner = {_, rid}} do
-      Hotsoup.Router.route(rid, :jsx.decode("{'action': 'ping'}"))
+      decode("{'action': 'ping'}") |> route(rid)
       {:noreply, {counter+1, inner}}
     end
   
@@ -68,12 +68,12 @@ defmodule Pongistes do
     use Protocol
     
     def init(nil) do
-      {:ok, rid} = Hotsoup.Cluster.get_router(ttl: 1000)
+      {:ok, rid} = get_router(ttl: 1000)
       super rid
     end
   
     match @start, rid do
-      Hotsoup.Router.route(rid, :jsx.decode("{'action': 'ping'}"))
+      decode("{'action': 'ping'}") |> route(rid)
       {:stop, rid}
     end
   end
@@ -136,6 +136,7 @@ end
 
 defmodule Pongistes.Test do
   use ExUnit.Case
+  import Hotsoup
 
   test "pongistes play" do
     Process.flag(:trap_exit, true)
@@ -150,7 +151,7 @@ defmodule Pongistes.Test do
     Pongistes.Starter.start_link
     {:ok, monitor} = Pongistes.Monitor.start_link
     
-    Hotsoup.route(:jsx.decode("{'action': 'start'}"))
+    decode("{'action': 'start'}") |> route
     
     assert_receive {:EXIT, ^monitor, {_, {:stop, %{other: 2, ping: ^ping, pong: ^pong, total: ^total}}}}
   end

@@ -1,27 +1,28 @@
-defmodule Hotsoup.Adapter.PrococolHandler do
-  defmodule Listener do
-    def start_link(rid, expr) do
-      Kernel.spawn_link(__MODULE__, :boot, [rid, expr, self])
-    end
+defmodule Hotsoup.Adapter.Listener do
+  def start_link(rid, expr) do
+    Kernel.spawn_link(__MODULE__, :boot, [rid, expr, self])
+  end
 
-    def boot(rid, expr, master) do
-      Hotsoup.Router.subscribe(rid, expr, self)
-      loop(expr, master)
-    end
+  def boot(rid, expr, master) do
+    Hotsoup.Router.subscribe(rid, expr, self)
+    loop(expr, master)
+  end
 
-    def loop(expr, master) do
-      receive do
-        jnode ->
-          GenServer.cast(master, {:node, expr, jnode})
-          loop(expr, master)
-      end
+  def loop(expr, master) do
+    receive do
+      jnode ->
+        GenServer.cast(master, {:node, expr, jnode})
+        loop(expr, master)
     end
   end
-  
+end
+
+defmodule Hotsoup.Adapter.PrococolHandler do
   use GenServer
   use Hotsoup.Client.Facade
   use Hotsoup.Client.Expr
   import Hotsoup
+  alias Hotsoup.Adapter.Listener
 
   def start_link(rid, writer_id) do
     GenServer.start_link(__MODULE__, [rid, writer_id])
@@ -56,7 +57,7 @@ defmodule Hotsoup.Adapter.PrococolHandler do
   end
 end
 
-defmodule Hotsoup.Ranch.Protocol.Writer do
+defmodule Hotsoup.Adapter.Ranch.Writer do
   def start_link(socket, transport, opts) do
     pid = Kernel.spawn_link(__MODULE__, :init, [socket, transport, opts])
     {:ok, pid}
@@ -67,20 +68,17 @@ defmodule Hotsoup.Ranch.Protocol.Writer do
   end
 
   def loop(socket, transport) do
-  	receive do
-  		{jnode, _captures} ->
-  		  {:ok, text} = Hotsoup.encode(jnode)
-  			transport.send(socket, text)
-  			loop(socket, transport)
-  	end
+    receive do
+      {jnode, _captures} ->
+        {:ok, text} = Hotsoup.encode(jnode)
+        transport.send(socket, text)
+        loop(socket, transport)
+    end
   end
 end
 
-defmodule Hotsoup.Ranch.Protocol do
-  @behaviour :ranch_protocol
-  
-  def start_link(ref, socket, transport, opts) do
-    {:ok, writer_id} = Hotsoup.Ranch.Protocol.Writer.start_link(socket, transport, [])
+defmodule Hotsoup.Adapter.Ranch.Reader do
+  def start_link(ref, socket, transport, [writer_id: writer_id]) do
     reader_id = Kernel.spawn_link(__MODULE__, :init, [ref, socket, transport, [writer_id: writer_id]])
     {:ok, reader_id}
   end
@@ -93,30 +91,39 @@ defmodule Hotsoup.Ranch.Protocol do
   end
 
   def loop(socket, transport, rid) do
-  	case transport.recv(socket, 0, 50000) do
-  		{:ok, data} ->
-    		case Hotsoup.decode(data) do
-  		    {:ok, jnode} ->
-      			Hotsoup.Router.route(rid, jnode)
-  			    Hotsoup.route(jnode)
-  			    loop(socket, transport, rid)
-  		    :error ->
-  			    loop(socket, transport, rid)
-  			   _ ->
-      			transport.close(socket)
-      	end
-  		{:error, :timeout} ->
-  			loop(socket, transport, rid)
+    case transport.recv(socket, 0, 50000) do
+      {:ok, data} ->
+        case Hotsoup.decode(data) do
+          {:ok, jnode} ->
+            Hotsoup.Router.route(rid, jnode)
+            Hotsoup.route(jnode)
+            loop(socket, transport, rid)
+          :error ->
+            loop(socket, transport, rid)
+           _ ->
+            transport.close(socket)
+        end
+      {:error, :timeout} ->
+        loop(socket, transport, rid)
       _ ->
-  			:ok = transport.close(socket)
-  	end
+        :ok = transport.close(socket)
+    end
   end
 end
 
-defmodule Hotsoup.Ranch.Adapter do
+defmodule Hotsoup.Adapter.Ranch.Protocol do
+  @behaviour :ranch_protocol
+  
+  def start_link(ref, socket, transport, opts) do
+    {:ok, writer_id} = Hotsoup.Adapter.Ranch.Writer.start_link(socket, transport, [])
+    {:ok, reader_id} = Hotsoup.Adapter.Ranch.Reader.start_link(ref, socket, transport, [writer_id: writer_id])
+  end
+end
+
+defmodule Hotsoup.Adapter.Ranch do
   def start do
     {:ok, _} = Application.ensure_all_started(:ranch)
-    {:ok, _} = :ranch.start_listener(:ranch_adapter, 100, :ranch_tcp, [port: 5555], Hotsoup.Ranch.Protocol, [])
+    {:ok, _} = :ranch.start_listener(:hotsoup_adapter_ranch, 100, :ranch_tcp, [port: 5555], Hotsoup.Adapter.Ranch.Protocol, [])
   end
 end
 

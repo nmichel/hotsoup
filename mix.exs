@@ -15,6 +15,7 @@ defmodule Hotsoup.Mixfile do
   end
 
   defp deps do
-    [{:ejpet, git: "https://github.com/nmichel/ejpet.git"}]
+    [{:ejpet, git: "https://github.com/nmichel/ejpet.git"},
+     {:ranch, git: "https://github.com/ninenines/ranch.git"}]
   end
 end

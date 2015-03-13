@@ -1,0 +1,8 @@
+* Hotsoup.decode/1 doit retourner
+    {:ok, node} dans le cas d'un noeud décodé
+    {:cont, state} dans le cas d'un décodage partiel
+        ce cas implique de créer Hotsoup.decode/2 pour continuer le décodage
+        ou alors on retourne {:cont, contFn} ou contFn est une "continuation
+        function" avec la même signature que Hotsoup.decode/1
+    :error en cas d'erreur
+

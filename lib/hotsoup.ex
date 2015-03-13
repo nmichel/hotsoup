@@ -35,7 +35,24 @@ defmodule Hotsoup do
     Decode `text` using the JSON backend specified by configuration.
   """
   def decode(text) when is_binary(text) do
-    :ejpet.decode(text, get_json_backend)
+    try do
+      jnode = :ejpet.decode(text, get_json_backend) 
+      {:ok, jnode}
+    rescue
+      _ -> :error
+    end
+  end
+
+  @doc """
+    Encode `jnode` using the JSON backend specified by configuration.
+  """
+  def encode(jnode) do
+    try do
+      text = :ejpet.encode(jnode, get_json_backend)
+      {:ok, text}
+    rescue
+      _ -> :error
+    end
   end
 
   @doc """
@@ -62,14 +79,28 @@ defmodule Hotsoup do
     Subscribe caller process to `pattern`
   """
   def subscribe(pattern) do
-    Cluster.subscribe(self(), pattern)
+    Cluster.subscribe(self, pattern)
+  end
+  
+  @doc """
+    Subscribe process `pid` to `pattern`
+  """
+  def subscribe(pid, pattern) when is_pid(pid) do
+    Cluster.subscribe(pid, pattern)
   end
   
   @doc """
     Unsubscribe caller process from all patterns
   """
   def unsubscribe() do
-    Cluster.unsubscribe(self())
+    Cluster.unsubscribe(self)
+  end
+  
+  @doc """
+    Unsubscribe process `pid` from all patterns
+  """
+  def unsubscribe(pid) when is_pid(pid) do
+    Cluster.unsubscribe(pid)
   end
   
   # Callbacks Application

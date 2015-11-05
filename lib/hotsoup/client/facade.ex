@@ -2,6 +2,7 @@ defmodule Hotsoup.Client.Facade do
   defmacro __using__(opts) do
     quote do
       @nomatch unquote(opts)[:nomatch] || :nomatch
+      @domatch unquote(opts)[:do_match] || :do_match
 
       import unquote(__MODULE__)
 
@@ -45,13 +46,13 @@ defmodule Hotsoup.Client.Facade do
                        bindings = expr |> extract_capture_names |> build_bindings
                        body = build_body(conds_code)
                        svar = Macro.var(:svar, nil)
-                       def do_match(unquote(expr), var!(jnode), unquote(svar) = unquote(state)) do
+                       def unquote(@domatch)(unquote(expr), var!(jnode), unquote(svar) = unquote(state)) do
                          unquote_splicing(bindings)
                          unquote(body)
                        end
                    end
 
-      def do_match(pattern, jnode, state) do
+      def unquote(@domatch)(pattern, jnode, state) do
         unquote(@nomatch)(jnode, state)
       end
     end

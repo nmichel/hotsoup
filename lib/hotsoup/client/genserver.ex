@@ -1,11 +1,22 @@
 defmodule Hotsoup.Client.GenServer do
   defmodule Listener do
-    def start_link(expr) do
-      Kernel.spawn_link(__MODULE__, :boot, [expr, self])
+    def start(expr, pid) do
+      Kernel.spawn(__MODULE__, :boot, [expr, pid])
+    end
+
+    def start(rid, expr, pid) do
+      Kernel.spawn(__MODULE__, :boot, [rid, expr, pid])
     end
 
     def boot(expr, master) do
+      Process.link master
       Hotsoup.Cluster.subscribe(self, expr)
+      loop(expr, master)
+    end
+
+    def boot(rid, expr, master) do
+      Process.link master
+      Hotsoup.Router.subscribe(rid, self, expr)
       loop(expr, master)
     end
 
@@ -22,14 +33,18 @@ defmodule Hotsoup.Client.GenServer do
     quote location: :keep do
       use GenServer
       use Hotsoup.Client.Facade
+      require Logger
 
-      def start_link(args \\ nil) do
-        GenServer.start_link(__MODULE__, args)
+      def start_link(args) do
+        r = {:ok, pid} = GenServer.start_link(__MODULE__, args)
+        Enum.each(expressions, &Listener.start(&1, pid))
+        r
       end
 
-      def init(state) do
-        Enum.each(expressions, &Listener.start_link(&1))
-        {:ok, state}
+      def start_link(rid, args) do
+        r = {:ok, pid} = GenServer.start_link(__MODULE__, args)
+        Enum.each(expressions, &Listener.start(rid, &1, pid))
+        r
       end
 
       def nomatch(jnode, state) do
@@ -40,7 +55,7 @@ defmodule Hotsoup.Client.GenServer do
         do_match(pattern, jnode, state)
       end
 
-      defoverridable [start_link: 1, init: 1, nomatch: 2]
+      defoverridable [start_link: 1, start_link: 2,  nomatch: 2]
 
       import unquote(__MODULE__)
     end

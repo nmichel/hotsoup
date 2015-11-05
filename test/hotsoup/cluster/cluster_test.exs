@@ -14,10 +14,8 @@ defmodule Hotsoup.ClusterTest do
 
     routers = Stream.repeatedly(fn -> Hotsoup.Cluster.get_router(%{ttl: trunc(:random.uniform * range) + offset}) end)
               |> Stream.take(count)
-              |> Stream.reject(fn({:ok, _}) -> false
-                                  (_) -> true 
-                                end)
-              |> Stream.map(fn({_, pid}) -> pid end)
+              |> Stream.filter_map(fn(x) -> elem(x, 0) == :ok end,
+                                   fn({_, pid}) -> pid end)
               |> Enum.to_list
               
     assert Enum.count(routers) == count
@@ -36,12 +34,10 @@ defmodule Hotsoup.ClusterTest do
   test "Route one / get one", context do
     count = context[:count]
     
-    routers =  Stream.repeatedly(fn () -> Hotsoup.Cluster.get_router(%{ttl: trunc(:random.uniform * context[:range]) + context[:offset]}) end)
+    routers =  Stream.repeatedly(fn -> Hotsoup.Cluster.get_router(%{ttl: trunc(:random.uniform * context[:range]) + context[:offset]}) end)
                |> Stream.take(count)
-               |> Stream.reject(fn({:ok, _}) -> false
-                                  (_) -> true 
-                                end)
-               |> Stream.map(fn({_, pid}) -> pid end)
+               |> Stream.filter_map(&(elem(&1, 0) == :ok),
+                                    &(elem(&1, 1)))
                |> Enum.to_list()
 
     assert Enum.count(routers) == count
@@ -49,7 +45,7 @@ defmodule Hotsoup.ClusterTest do
     Hotsoup.Cluster.subscribe(self, "42")
     
     jnode = :jsx.decode("42")
-    
+
     routers
     |> List.first()
     |> Hotsoup.Router.route(jnode)

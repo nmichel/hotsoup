@@ -158,8 +158,12 @@ defmodule Hotsoup.Cluster do
     %{state | by_pattern: by_pattern}
   end
 
-  defp do_route(%{default_router: rid}, jnode) do
-    Router.route(rid, jnode)
+  defp do_route(state = %{routers: routers}, jnode) do
+    Enum.each(routers, fn(rid) ->
+                           no_error do
+                             Hotsoup.Router.route(rid, jnode)
+                           end
+                       end)
   end
 
   defp do_get_stats(%{routers: routers}, :routers) do

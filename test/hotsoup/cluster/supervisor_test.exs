@@ -2,9 +2,8 @@ defmodule Hotsoup.Cluster.SupervisorTest do
   use ExUnit.Case
 
   test "Can start 100 differents routers" do
-    assert Stream.repeatedly(fn() -> {:ok, _} = Hotsoup.Cluster.Supervisor.start_router end)
+    assert Stream.repeatedly(fn -> Hotsoup.Cluster.Supervisor.start_router end)
            |> Stream.take(100)
-           |> Stream.uniq()
            |> Stream.reject(fn(x) -> elem(x, 0) == :ok end)
            |> Enum.count()
            == 0

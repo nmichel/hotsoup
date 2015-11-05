@@ -72,7 +72,7 @@ defmodule Hotsoup.Client.GenServerTest.MyWhenClient do
     l == ["foo"]
   end
 
-  match "[*, (?<v1>_), {_: (?<v2>)}]", %{master: master} = state,
+  match "[*, (?<v1>_), {_: (?<v2>_)}]", %{master: master} = state,
     when: check_some_properties(v2),
     when: List.first(Enum.reverse(v1)) == 42
   do
@@ -80,7 +80,7 @@ defmodule Hotsoup.Client.GenServerTest.MyWhenClient do
     {:noreply, state}
   end
 
-  match "[*, (?<v1>_), {_: (?<v2>)}]", %{master: master} = state,
+  match "[*, (?<v1>_), {_: (?<v2>_)}]", %{master: master} = state,
     when: check_some_properties(v2)
   do
     send(master, {:match, :rule5})
@@ -101,7 +101,7 @@ defmodule Hotsoup.Client.GenServerWhenTest do
 
   test "many :when cond evaluated", context do
     pid = context[:pid]
-    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]",
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>_)}]",
                          {:ok, [v2: ["foo"], v1: [1, 2, "foo", 42]]}}) # will match
     assert_receive {:match, :rule4}
     assert Process.info(pid)[:messages] == [] # all messages processed
@@ -109,7 +109,7 @@ defmodule Hotsoup.Client.GenServerWhenTest do
 
   test "another :when conditions set match", context do
     pid = context[:pid]
-    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]",
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>_)}]",
                          {:ok, [v2: ["foo"], v1: [1, 2]]}}) # will match
     assert_receive {:match, :rule5}
     assert Process.info(pid)[:messages] == [] # all messages processed
@@ -118,7 +118,7 @@ defmodule Hotsoup.Client.GenServerWhenTest do
   test "exception raised when no when: conditions set is fully met", context do
     pid = context[:pid]
 
-    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]",
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>_)}]",
                          {:ok, [v2: ["neh"], v1: [13, 42]]}}) # won't match
     assert_receive {:EXIT, _, _}
   end
@@ -151,7 +151,7 @@ defmodule Hotsoup.Client.GenServerCatchallTest do
   test "catch non matching node in nomatch/2", context do
     pid = context[:pid]
 
-    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>)}]", {:ok, [v2: ["foo"], v1: [1, 2, "foo", 42]]}})
+    GenServer.cast(pid, {:node, "[*, (?<v1>_), {_: (?<v2>_)}]", {:ok, [v2: ["foo"], v1: [1, 2, "foo", 42]]}})
     assert_receive {:match, :default}
   end
 end

@@ -27,7 +27,7 @@ defmodule Hotsoup.Client.FacadeTest.MyClient do
     :case6
   end
   
-  match "[*, (?<v1>_), {_: (?<v2>)}]", _state,
+  match "[*, (?<v1>_), {_: (?<v2>_)}]", _state,
     when: check_some_properties(v2),
     when: is_list(v1),
     when: List.first(Enum.reverse(v1)) == 42
@@ -35,7 +35,7 @@ defmodule Hotsoup.Client.FacadeTest.MyClient do
     :case7
   end
 
-  match "[*, (?<v1>_), {_: (?<v2>)}]", _state,
+  match "[*, (?<v1>_), {_: (?<v2>_)}]", _state,
     when: check_some_properties(v2)
   do
     :case8
@@ -63,8 +63,8 @@ defmodule Hotsoup.Client.FacadeTest do
 
   test "match when: conditions" do
     assert :case5 == MyClient.do_match("[*, (?<val>_)]", {:mock_with_captures, [val: [42, :foo]]}, %{case: :case1})
-    assert :case8 == MyClient.do_match("[*, (?<v1>_), {_: (?<v2>)}]", {:mock_with_captures, [v2: ["foo", :foo], v1: :no_match_data]}, :no_match_data)
-    assert :case7 == MyClient.do_match("[*, (?<v1>_), {_: (?<v2>)}]", {:mock_with_captures, [v1: [:bar, 42], v2: ["foo", :foo]]}, :no_match_data)
+    assert :case8 == MyClient.do_match("[*, (?<v1>_), {_: (?<v2>_)}]", {:mock_with_captures, [v2: ["foo", :foo], v1: :no_match_data]}, :no_match_data)
+    assert :case7 == MyClient.do_match("[*, (?<v1>_), {_: (?<v2>_)}]", {:mock_with_captures, [v1: [:bar, 42], v2: ["foo", :foo]]}, :no_match_data)
   end
 
   test "return :nomatch when no clause matches" do
@@ -77,14 +77,14 @@ defmodule Hotsoup.Client.FacadeTest do
 
   test "error caused when variables present in expressions are not bound" do
     {:badmatch, _} = catch_error MyClient.do_match("[*, (?<val>_)]", {:mock_with_captures, [not_val: [42]]}, :no_match_data)
-    {:badmatch, _} = catch_error MyClient.do_match("[*, (?<v1>_), {_: (?<v2>)}]", {:mock_with_captures, [v1: [:bar, 42]]}, :no_match_data)
+    {:badmatch, _} = catch_error MyClient.do_match("[*, (?<v1>_), {_: (?<v2>_)}]", {:mock_with_captures, [v1: [:bar, 42]]}, :no_match_data)
   end
 
   test "error caused when variables present in expressions are not bound event if all conditions are met" do
-    {:badmatch, _} = catch_error MyClient.do_match("[*, (?<v1>_), {_: (?<v2>)}]", {:mock_with_captures, [v2: ["foo", :foo]]}, :no_match_data)
+    {:badmatch, _} = catch_error MyClient.do_match("[*, (?<v1>_), {_: (?<v2>_)}]", {:mock_with_captures, [v2: ["foo", :foo]]}, :no_match_data)
   end
   
   test "can get watched expressions" do
-    assert ["\"foo\"", "42", "[*, (?<v1>_), {_: (?<v2>)}]", "[*, (?<val>_)]"] == MyClient.expressions |> Enum.sort(&(&1 < &2))
+    assert ["\"foo\"", "42", "[*, (?<v1>_), {_: (?<v2>_)}]", "[*, (?<val>_)]"] == MyClient.expressions |> Enum.sort(&(&1 < &2))
   end
 end

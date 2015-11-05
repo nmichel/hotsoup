@@ -22,16 +22,17 @@ defmodule Pongistes do
     
     def init(nil) do
       {:ok, rid} = get_router(ttl: 1000)
-      super {1, rid}
+      {:ok, {1, rid}}
     end
   
     match @ping, {counter, rid} do
-      decode("{'action': 'pong'}") |> route(rid)
+      {:ok, n} = decode("{'action': 'pong'}")
+      route(n, rid)
       {:noreply, {counter+1, rid}}
     end
   
     match @stop, state do
-      {:stop, state}
+      {:stop, :stop, state}
     end
   end
   
@@ -45,21 +46,23 @@ defmodule Pongistes do
     
     def init(n) do
       {:ok, rid} = get_router(ttl: 1000)
-      super {1, {n, rid}}
+      {:ok, {1, {n, rid}}}
     end
   
     @pattern @pong
     match state = {n, {n, rid}} do
-      decode("{'action': 'stop'}") |> route(rid)
+      {:ok, n} = decode("{'action': 'stop'}")
+      route(n, rid)
       {:noreply, state}
     end
     match {counter, inner = {_, rid}} do
-      decode("{'action': 'ping'}") |> route(rid)
+      {:ok, n} = decode("{'action': 'ping'}")
+      route(n, rid)
       {:noreply, {counter+1, inner}}
     end
   
     match @stop, state do
-      {:stop, state}
+      {:stop, :stop, state}
     end
   end
   
@@ -69,21 +72,21 @@ defmodule Pongistes do
     
     def init(nil) do
       {:ok, rid} = get_router(ttl: 1000)
-      super rid
     end
   
     match @start, rid do
-      decode("{'action': 'ping'}") |> route(rid)
-      {:stop, rid}
+      {:ok, n} = decode("{'action': 'ping'}")
+      route(n, rid)
+      {:stop, :stop, rid}
     end
   end
-  
+
   defmodule Monitor do
     use Hotsoup.Client.GenServer
     use Protocol
   
-    def init(nil) do
-      super %{ping: 0, pong: 0, other: 0, total: 0}
+    def init(master) do
+      {:ok, %{master: master, ping: 0, pong: 0, other: 0, total: 0}}
     end
   
     @pattern @action
@@ -128,8 +131,10 @@ defmodule Pongistes do
       {:noreply, state}
     end
   
-    match @stop, state do
-      {:stop, %{state | other: state[:other]+1, total: state[:total]+1}}
+    match @stop, state = %{master: m} do
+      r = %{state | other: state[:other]+1, total: state[:total]+1}
+      send(m, r)
+      {:stop, :stop, r}
     end
   end
 end
@@ -142,17 +147,19 @@ defmodule Pongistes.Test do
     Process.flag(:trap_exit, true)
     
     count = 10
-    ping = count    
-    pong = count    
-    total = 2*count+2
+    ping = count
+    pong = count
+    other = 5 # start x 4 + stop
+    total = ping + pong + other
     
-    Pongistes.Pong.start_link(count)
-    Pongistes.Ping.start_link
-    Pongistes.Starter.start_link
-    {:ok, monitor} = Pongistes.Monitor.start_link
+    {:ok, _} = Pongistes.Pong.start_link(count)
+    {:ok, _} = Pongistes.Ping.start_link nil
+    {:ok, _} = Pongistes.Starter.start_link nil
+    {:ok, m} = Pongistes.Monitor.start_link self
     
-    decode("{'action': 'start'}") |> route
+    {:ok, n} = decode("{'action': 'start'}")
+    route n
     
-    assert_receive {:EXIT, ^monitor, {_, {:stop, %{other: 2, ping: ^ping, pong: ^pong, total: ^total}}}}
+    assert_receive %{master: self, other: 5, ping: ^ping, pong: ^pong, total: ^total}, 1000
   end
 end

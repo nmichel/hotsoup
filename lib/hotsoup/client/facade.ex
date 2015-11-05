@@ -1,19 +1,27 @@
 defmodule Hotsoup.Client.Facade do
-  defmacro __using__(_opts) do
+  defmacro __using__(opts) do
     quote do
-      def nomatch(jnode, state) do
-        {:nomatch, jnode, state}
-      end
-
-      defoverridable [nomatch: 2]
+      @nomatch unquote(opts)[:nomatch] || :nomatch
 
       import unquote(__MODULE__)
 
       @matchers []
       @before_compile unquote(__MODULE__)
+                      
+      build_default
     end
   end
-  
+
+  defmacro build_default do
+    quote location: :keep, unquote: false do
+      def unquote(@nomatch)(jnode, state) do
+        {:nomatch, jnode, state}
+      end
+
+      defoverridable [{@nomatch, 2}]
+    end
+  end
+
   defmacro __before_compile__(_env) do
     quote unquote: false do
       @matchers_by_exp @matchers |> Enum.group_by(fn({expr, state, _conds, _code}) ->
@@ -44,7 +52,7 @@ defmodule Hotsoup.Client.Facade do
                    end
 
       def do_match(pattern, jnode, state) do
-        nomatch(jnode, state)
+        unquote(@nomatch)(jnode, state)
       end
     end
   end
@@ -107,7 +115,7 @@ defmodule Hotsoup.Client.Facade do
   def build_body([]) do
     quote bind_quoted: [svar: Macro.var(:svar, nil),
                         jnode: Macro.var(:jnode, nil)] do
-      nomatch(svar, jnode)
+      Kernel.apply(__MODULE__, @nomatch, [svar, jnode]) 
     end
   end
   def build_body([{conds, code} | tail]) do

@@ -1,6 +1,6 @@
 defmodule Hotsoup.Mixfile do
   use Mix.Project
-
+       
   def project do
     [app: :hotsoup,
      version: "0.0.1",
@@ -16,6 +16,9 @@ defmodule Hotsoup.Mixfile do
 
   defp deps do
     [{:ejpet, git: "https://github.com/nmichel/ejpet.git"},
-     {:ranch, git: "https://github.com/ninenines/ranch.git"}]
+     {:ranch, git: "https://github.com/ninenines/ranch.git"},
+     {:earmark, "~> 0.1", only: :dev},
+     {:ex_doc, "~> 0.10", only: :dev}
+    ]
   end
 end

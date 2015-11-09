@@ -29,11 +29,15 @@ defmodule Hotsoup.Client.GenServer do
     end
   end
   
-  defmacro __using__(_opts) do
+  defmacro __using__(opts) do
     quote location: :keep do
       use GenServer
-      use Hotsoup.Client.Facade
+      use Hotsoup.Client.Facade, unquote(opts)
+      import unquote(__MODULE__), except: [build_default: 2]
       require Logger
+
+      @nomatch unquote(opts)[:nomatch] || :nomatch
+      @domatch unquote(opts)[:do_match] || :do_match
 
       def start_link(args) do
         r = {:ok, pid} = GenServer.start_link(__MODULE__, args)
@@ -46,18 +50,24 @@ defmodule Hotsoup.Client.GenServer do
         Enum.each(expressions, &Listener.start(rid, &1, pid))
         r
       end
+       
+      unquote(__MODULE__).build_default
 
-      def nomatch(jnode, state) do
+      defoverridable [start_link: 1, start_link: 2]
+    end
+  end
+
+  defmacro build_default do
+    quote location: :keep, unquote: false do
+      def handle_cast(n = {:node, pattern, jnode}, state) do
+        unquote(@domatch)(pattern, jnode, state)
+      end
+
+      def unquote(@nomatch)(jnode, state) do
         {:stop, {:nomatch, jnode}, state}
       end
 
-      def handle_cast({:node, pattern, jnode}, state) do
-        do_match(pattern, jnode, state)
-      end
-
-      defoverridable [start_link: 1, start_link: 2,  nomatch: 2]
-
-      import unquote(__MODULE__)
+      defoverridable [{@nomatch, 2}]
     end
   end
 end

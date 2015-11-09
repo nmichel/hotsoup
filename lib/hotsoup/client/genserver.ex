@@ -30,11 +30,12 @@ defmodule Hotsoup.Client.GenServer do
   end
   
   defmacro __using__(opts) do
+    defaults = build_defaults
+
     quote location: :keep do
       use GenServer
       use Hotsoup.Client.Facade, unquote(opts)
-      import unquote(__MODULE__), except: [build_default: 2]
-      require Logger
+      import unquote(__MODULE__)
 
       @nomatch unquote(opts)[:nomatch] || :nomatch
       @domatch unquote(opts)[:do_match] || :do_match
@@ -51,13 +52,13 @@ defmodule Hotsoup.Client.GenServer do
         r
       end
        
-      unquote(__MODULE__).build_default
+      unquote(defaults)
 
       defoverridable [start_link: 1, start_link: 2]
     end
   end
 
-  defmacro build_default do
+  defp build_defaults do
     quote location: :keep, unquote: false do
       def handle_cast(n = {:node, pattern, jnode}, state) do
         unquote(@domatch)(pattern, jnode, state)

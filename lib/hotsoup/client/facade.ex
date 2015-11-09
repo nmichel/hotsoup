@@ -1,59 +1,65 @@
 defmodule Hotsoup.Client.Facade do
   defmacro __using__(opts) do
+    nomatch = opts[:nomatch] || :nomatch
+    domatch = opts[:do_match] || :do_match
+
     quote do
+      import unquote(__MODULE__)
+      
       @nomatch unquote(opts)[:nomatch] || :nomatch
       @domatch unquote(opts)[:do_match] || :do_match
-
-      import unquote(__MODULE__)
-
       @matchers []
       @before_compile unquote(__MODULE__)
-                      
-      build_default
-    end
-  end
 
-  defmacro build_default do
-    quote location: :keep, unquote: false do
-      def unquote(@nomatch)(jnode, state) do
+      def unquote(nomatch)(jnode, state) do
         {:nomatch, jnode, state}
       end
 
-      defoverridable [{@nomatch, 2}]
+      defoverridable [{unquote(nomatch), 2}]
     end
   end
 
-  defmacro __before_compile__(_env) do
-    quote unquote: false do
-      @matchers_by_exp @matchers |> Enum.group_by(fn({expr, state, _conds, _code}) ->
-                                                      expr <> Macro.to_string(state)
-                                                  end)
-                                 |> Enum.map(fn({k, v = [{expr, state, _cond_0, _code_0}|_]}) ->
-                                                 {{expr, state}, Enum.map(v, fn({_expr_n, _state_n, cond_n, code_n}) ->
-                                                                                 {cond_n, code_n}
-                                                                             end)}
-                                             end)
+  defmacro __before_compile__(env) do
+    matchers = Module.get_attribute(env.module, :matchers)
+    domatch =  Module.get_attribute(env.module, :domatch)
+    nomatch =  Module.get_attribute(env.module, :nomatch)
 
-      @expressions Stream.map(@matchers_by_exp, fn({{expr, _state}, _conds_code}) -> expr end)
-                   |> Enum.uniq
+    matchers_by_exp = matchers
+      |> Enum.group_by(fn({expr, state, _conds, _code}) ->
+                           expr <> Macro.to_string(state)
+                       end)
+      |> Enum.map(fn({k, v = [{expr, state, _cond_0, _code_0}|_]}) ->
+                      {{expr, state}, Enum.map(v, fn({_expr_n, _state_n, cond_n, code_n}) ->
+                                                      {cond_n, code_n}
+                                                  end)}
+                  end)
 
-      def expressions do
-        @expressions
+    expressions = matchers_by_exp
+      |> Stream.map(fn({{expr, _state}, _conds_code}) -> expr end)
+      |> Enum.uniq
+
+    match_defs =
+      for {{expr, state}, conds_code} <- matchers_by_exp do
+        bindings = expr |> extract_capture_names |> build_bindings
+        body = build_body(conds_code)
+        svar = Macro.var(:svar, nil)
+        quote do
+          def unquote(domatch)(unquote(expr), var!(jnode), unquote(svar) = unquote(state)) do
+            unquote_splicing(bindings)
+            unquote(body)
+          end
+        end
       end
 
-      @matchers_by_exp
-      |> Enum.each fn({{expr, state}, conds_code}) ->
-                       bindings = expr |> extract_capture_names |> build_bindings
-                       body = build_body(conds_code)
-                       svar = Macro.var(:svar, nil)
-                       def unquote(@domatch)(unquote(expr), var!(jnode), unquote(svar) = unquote(state)) do
-                         unquote_splicing(bindings)
-                         unquote(body)
-                       end
-                   end
+    quote do
+      def expressions do
+        unquote(expressions)
+      end
 
-      def unquote(@domatch)(pattern, jnode, state) do
-        unquote(@nomatch)(jnode, state)
+      unquote_splicing(match_defs)
+       
+      def unquote(domatch)(pattern, jnode, state) do
+        unquote(nomatch)(jnode, state)
       end
     end
   end
@@ -86,14 +92,14 @@ defmodule Hotsoup.Client.Facade do
     end
   end
 
-  def extract_capture_names(expr) do
+  defp extract_capture_names(expr) do
     Regex.compile("\\(\\?<([A-Za-z0-9_]+)>[^\\)]*\\)")
     |> elem(1)
     |> Regex.scan(expr, [capture: :all_but_first])
     |> List.flatten
   end
 
-  def build_bindings(vars) do
+  defp build_bindings(vars) do
     vars
     |> Enum.map(fn(name) ->
                     va = String.to_atom(name)
@@ -113,13 +119,13 @@ defmodule Hotsoup.Client.Facade do
                 end)
   end
 
-  def build_body([]) do
+  defp build_body([]) do
     quote bind_quoted: [svar: Macro.var(:svar, nil),
                         jnode: Macro.var(:jnode, nil)] do
       Kernel.apply(__MODULE__, @nomatch, [svar, jnode]) 
     end
   end
-  def build_body([{conds, code} | tail]) do
+  defp build_body([{conds, code} | tail]) do
     ifcond = build_if_conds(conds)
     elsebody = build_body(tail)
     quote do
@@ -131,7 +137,7 @@ defmodule Hotsoup.Client.Facade do
     end
   end
 
-  def build_if_conds(conds) do
+  defp build_if_conds(conds) do
     conds
     |> Enum.reduce(true,
                    fn({:when, c}, acc) ->
